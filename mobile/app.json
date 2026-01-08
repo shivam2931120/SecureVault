@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "SecureVault",
+    "slug": "securevault-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "scheme": "securevault",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#070707"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.securevault.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#070707"
+      },
+      "package": "com.securevault.mobile",
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2fee9749-da47-4bcd-9de7-0cf2c8a7b4af"
+      }
+    },
+    "owner": "shivam2931120"
+  }
+}
