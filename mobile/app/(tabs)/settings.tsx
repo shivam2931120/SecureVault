@@ -1,180 +1,174 @@
-import { View, Text, Switch, TouchableOpacity, StyleSheet, ScrollView, Modal, Pressable } from 'react-native';
-import { useAuthStore } from '@/store/authStore';
-import { useSettingsStore, AutoLockTime } from '@/store/settingsStore';
-import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/theme';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { router } from 'expo-router';
+import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/theme';
+import { useAuthStore } from '@/store/authStore';
+import { useOfflineStatus } from '@/hooks/useOfflineStatus';
+import { OfflineStatusBar } from '@/components/OfflineStatusBar';
 
-const AUTO_LOCK_OPTIONS: { label: string; value: AutoLockTime }[] = [
-    { label: '30 seconds', value: '30s' },
-    { label: '1 minute', value: '1m' },
-    { label: '5 minutes', value: '5m' },
-    { label: '10 minutes', value: '10m' },
-    { label: 'Never', value: 'never' },
-];
+interface SettingItemProps {
+    icon: string;
+    title: string;
+    subtitle?: string;
+    onPress: () => void;
+    danger?: boolean;
+    rightContent?: React.ReactNode;
+}
+
+function SettingItem({ icon, title, subtitle, onPress, danger, rightContent }: SettingItemProps) {
+    return (
+        <TouchableOpacity style={styles.settingItem} onPress={onPress} activeOpacity={0.7}>
+            <View style={[styles.iconContainer, danger && { backgroundColor: `${COLORS.danger}20` }]}>
+                <Ionicons name={icon as any} size={22} color={danger ? COLORS.danger : COLORS.primary} />
+            </View>
+            <View style={styles.settingContent}>
+                <Text style={[styles.settingTitle, danger && { color: COLORS.danger }]}>{title}</Text>
+                {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
+            </View>
+            {rightContent || <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />}
+        </TouchableOpacity>
+    );
+}
 
 export default function SettingsScreen() {
     const { logout, biometricsEnabled, enableBiometrics } = useAuthStore();
-    const { autoLockTime, setAutoLockTime, screenshotProtection, setScreenshotProtection, emailAlerts, setEmailAlerts, biometricReprompt, setBiometricReprompt } = useSettingsStore();
-    const [showAutoLockModal, setShowAutoLockModal] = useState(false);
-    const [localBioState, setLocalBioState] = useState(biometricsEnabled);
-
-    const toggleBiometrics = async (value: boolean) => {
-        if (value) {
-            const success = await enableBiometrics();
-            if (success) setLocalBioState(true);
-        } else {
-            setLocalBioState(false);
-        }
-    };
-
-    const getAutoLockLabel = () => {
-        const option = AUTO_LOCK_OPTIONS.find(o => o.value === autoLockTime);
-        return option?.label || '1 minute';
-    };
+    const { pendingCount } = useOfflineStatus();
 
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Settings</Text>
+            {/* Offline Status */}
+            <OfflineStatusBar />
+
+            {/* Account Section */}
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Account</Text>
+                <View style={styles.card}>
+                    <View style={styles.profileRow}>
+                        <View style={styles.avatar}>
+                            <Ionicons name="person" size={28} color={COLORS.primary} />
+                        </View>
+                        <View style={styles.profileInfo}>
+                            <Text style={styles.profileName}>Local Vault</Text>
+                            <Text style={styles.profileEmail}>Encrypted on this device</Text>
+                        </View>
+                    </View>
+                </View>
             </View>
 
             {/* Security Section */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Security</Text>
-
-                <View style={styles.row}>
-                    <View style={styles.rowContent}>
-                        <Ionicons name="finger-print" size={24} color={COLORS.primary} />
-                        <Text style={styles.rowLabel}>Biometric Unlock</Text>
-                    </View>
-                    <Switch
-                        value={localBioState}
-                        onValueChange={toggleBiometrics}
-                        trackColor={{ false: COLORS.border, true: COLORS.primary }}
-                        thumbColor="#FFF"
+                <View style={styles.card}>
+                    <SettingItem
+                        icon="finger-print"
+                        title="Biometric Unlock"
+                        subtitle={biometricsEnabled ? 'Enabled' : 'Tap to enable'}
+                        onPress={() => !biometricsEnabled && enableBiometrics()}
+                        rightContent={
+                            <View style={[styles.badge, biometricsEnabled && styles.badgeActive]}>
+                                <Text style={[styles.badgeText, biometricsEnabled && styles.badgeTextActive]}>
+                                    {biometricsEnabled ? 'On' : 'Off'}
+                                </Text>
+                            </View>
+                        }
+                    />
+                    <SettingItem
+                        icon="timer-outline"
+                        title="Auto-Lock"
+                        subtitle="Lock after 5 minutes"
+                        onPress={() => { }}
+                    />
+                    <SettingItem
+                        icon="key"
+                        title="Autofill"
+                        subtitle="Fill passwords in apps"
+                        onPress={() => router.push('/settings/autofill')}
                     />
                 </View>
-
-                <TouchableOpacity style={styles.row} onPress={() => setShowAutoLockModal(true)}>
-                    <View style={styles.rowContent}>
-                        <Ionicons name="timer-outline" size={24} color={COLORS.textPrimary} />
-                        <Text style={styles.rowLabel}>Auto-Lock Timer</Text>
-                    </View>
-                    <View style={styles.rowRight}>
-                        <Text style={styles.rowValue}>{getAutoLockLabel()}</Text>
-                        <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-                    </View>
-                </TouchableOpacity>
-
-                <View style={styles.row}>
-                    <View style={styles.rowContent}>
-                        <Ionicons name="eye-off-outline" size={24} color={COLORS.textPrimary} />
-                        <Text style={styles.rowLabel}>Screenshot Protection</Text>
-                    </View>
-                    <Switch
-                        value={screenshotProtection}
-                        onValueChange={setScreenshotProtection}
-                        trackColor={{ false: COLORS.border, true: COLORS.primary }}
-                        thumbColor="#FFF"
-                    />
-                </View>
-
-                <View style={styles.row}>
-                    <View style={styles.rowContent}>
-                        <Ionicons name="hand-left-outline" size={24} color={COLORS.textPrimary} />
-                        <Text style={styles.rowLabel}>Biometric Re-prompt</Text>
-                    </View>
-                    <Switch
-                        value={biometricReprompt}
-                        onValueChange={setBiometricReprompt}
-                        trackColor={{ false: COLORS.border, true: COLORS.primary }}
-                        thumbColor="#FFF"
-                    />
-                </View>
-
-                <TouchableOpacity style={styles.row}>
-                    <View style={styles.rowContent}>
-                        <Ionicons name="people-outline" size={24} color={COLORS.textPrimary} />
-                        <Text style={styles.rowLabel}>Emergency Access</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-                </TouchableOpacity>
             </View>
 
             {/* Data Section */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Data</Text>
-
-                <TouchableOpacity style={styles.row}>
-                    <View style={styles.rowContent}>
-                        <Ionicons name="download-outline" size={24} color={COLORS.textPrimary} />
-                        <Text style={styles.rowLabel}>Export Vault</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.row}>
-                    <View style={styles.rowContent}>
-                        <Ionicons name="folder-outline" size={24} color={COLORS.textPrimary} />
-                        <Text style={styles.rowLabel}>Manage Folders</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-                </TouchableOpacity>
+                <View style={styles.card}>
+                    <SettingItem
+                        icon="cloud-upload-outline"
+                        title="Export Vault"
+                        subtitle="Encrypted backup"
+                        onPress={() => { }}
+                    />
+                    <SettingItem
+                        icon="cloud-download-outline"
+                        title="Import Data"
+                        subtitle="From other managers"
+                        onPress={() => { }}
+                    />
+                    {pendingCount > 0 && (
+                        <SettingItem
+                            icon="sync-outline"
+                            title="Sync Queue"
+                            subtitle={`${pendingCount} pending`}
+                            onPress={() => { }}
+                            rightContent={
+                                <View style={styles.pendingBadge}>
+                                    <Text style={styles.pendingText}>{pendingCount}</Text>
+                                </View>
+                            }
+                        />
+                    )}
+                </View>
             </View>
 
-            {/* Notifications Section */}
+            {/* Emergency Access */}
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Notifications</Text>
-
-                <View style={styles.row}>
-                    <View style={styles.rowContent}>
-                        <Ionicons name="mail-outline" size={24} color={COLORS.textPrimary} />
-                        <Text style={styles.rowLabel}>Email Alerts</Text>
-                    </View>
-                    <Switch
-                        value={emailAlerts}
-                        onValueChange={setEmailAlerts}
-                        trackColor={{ false: COLORS.border, true: COLORS.primary }}
-                        thumbColor="#FFF"
+                <Text style={styles.sectionTitle}>Emergency</Text>
+                <View style={styles.card}>
+                    <SettingItem
+                        icon="people-outline"
+                        title="Emergency Access"
+                        subtitle="Set trusted contacts"
+                        onPress={() => { }}
                     />
                 </View>
             </View>
 
-            <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-                <Text style={styles.logoutText}>Log Out</Text>
-            </TouchableOpacity>
+            {/* About Section */}
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>About</Text>
+                <View style={styles.card}>
+                    <SettingItem
+                        icon="document-text-outline"
+                        title="Documentation"
+                        subtitle="View app guide"
+                        onPress={() => { }}
+                    />
+                    <SettingItem
+                        icon="information-circle-outline"
+                        title="Version"
+                        subtitle="1.0.0 (Build 1)"
+                        onPress={() => { }}
+                        rightContent={null}
+                    />
+                </View>
+            </View>
 
-            <Text style={styles.version}>v1.0.0 (Build 42)</Text>
+            {/* Danger Zone */}
+            <View style={styles.section}>
+                <View style={styles.card}>
+                    <SettingItem
+                        icon="log-out-outline"
+                        title="Lock Vault"
+                        onPress={logout}
+                        danger
+                    />
+                </View>
+            </View>
 
-            {/* Auto-Lock Modal */}
-            <Modal visible={showAutoLockModal} transparent animationType="fade">
-                <Pressable style={styles.modalOverlay} onPress={() => setShowAutoLockModal(false)}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Auto-Lock Timer</Text>
-                        {AUTO_LOCK_OPTIONS.map((option) => (
-                            <TouchableOpacity
-                                key={option.value}
-                                style={styles.modalOption}
-                                onPress={() => {
-                                    setAutoLockTime(option.value);
-                                    setShowAutoLockModal(false);
-                                }}
-                            >
-                                <Text style={[
-                                    styles.modalOptionText,
-                                    autoLockTime === option.value && styles.modalOptionSelected
-                                ]}>
-                                    {option.label}
-                                </Text>
-                                {autoLockTime === option.value && (
-                                    <Ionicons name="checkmark" size={20} color={COLORS.primary} />
-                                )}
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </Pressable>
-            </Modal>
+            <View style={styles.footer}>
+                <Text style={styles.footerText}>SecureVault</Text>
+                <Text style={styles.footerSubtext}>Zero-Knowledge Encryption</Text>
+            </View>
         </ScrollView>
     );
 }
@@ -185,109 +179,116 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.background,
     },
     content: {
-        padding: SPACING.l,
         paddingTop: 60,
+        paddingBottom: 100,
     },
-    header: {
-        marginBottom: SPACING.xl,
-    },
-    headerTitle: {
-        ...TYPOGRAPHY.h1,
-    } as any,
-    userEmail: {
-        ...TYPOGRAPHY.body,
-        color: COLORS.textSecondary,
-        marginTop: SPACING.s,
-    } as any,
     section: {
-        backgroundColor: COLORS.card,
-        borderRadius: BORDER_RADIUS.l,
-        padding: SPACING.m,
         marginBottom: SPACING.l,
     },
     sectionTitle: {
         ...TYPOGRAPHY.label,
-        marginBottom: SPACING.m,
-        marginLeft: SPACING.s,
         textTransform: 'uppercase',
+        marginHorizontal: SPACING.l,
+        marginBottom: SPACING.s,
     } as any,
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: SPACING.m,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
+    card: {
+        marginHorizontal: SPACING.l,
+        backgroundColor: COLORS.card,
+        borderRadius: BORDER_RADIUS.m,
+        overflow: 'hidden',
     },
-    rowContent: {
+    profileRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        padding: SPACING.m,
         gap: SPACING.m,
     },
-    rowRight: {
-        flexDirection: 'row',
+    avatar: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: `${COLORS.primary}20`,
         alignItems: 'center',
-        gap: SPACING.s,
-    },
-    rowLabel: {
-        ...TYPOGRAPHY.body,
-    } as any,
-    rowValue: {
-        ...TYPOGRAPHY.body,
-        color: COLORS.textSecondary,
-    } as any,
-    logoutButton: {
-        marginTop: SPACING.l,
-        backgroundColor: COLORS.card,
-        padding: SPACING.m,
-        borderRadius: BORDER_RADIUS.m,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: COLORS.danger,
-    },
-    logoutText: {
-        color: COLORS.danger,
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    version: {
-        textAlign: 'center',
-        color: COLORS.textSecondary,
-        marginTop: SPACING.xl,
-        fontSize: 12,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.7)',
         justifyContent: 'center',
-        alignItems: 'center',
     },
-    modalContent: {
-        backgroundColor: COLORS.card,
-        borderRadius: BORDER_RADIUS.l,
-        padding: SPACING.l,
-        width: '80%',
-        maxWidth: 320,
+    profileInfo: {
+        flex: 1,
     },
-    modalTitle: {
+    profileName: {
         ...TYPOGRAPHY.h3,
-        marginBottom: SPACING.l,
-        textAlign: 'center',
     } as any,
-    modalOption: {
+    profileEmail: {
+        ...TYPOGRAPHY.small,
+        color: COLORS.textSecondary,
+    } as any,
+    settingItem: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: SPACING.m,
+        padding: SPACING.m,
+        gap: SPACING.m,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.border,
     },
-    modalOptionText: {
-        ...TYPOGRAPHY.body,
-    } as any,
-    modalOptionSelected: {
-        color: COLORS.primary,
-        fontWeight: 'bold',
+    iconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: `${COLORS.primary}20`,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
+    settingContent: {
+        flex: 1,
+    },
+    settingTitle: {
+        ...TYPOGRAPHY.body,
+        fontWeight: '500',
+    } as any,
+    settingSubtitle: {
+        ...TYPOGRAPHY.small,
+        color: COLORS.textSecondary,
+        marginTop: 2,
+    } as any,
+    badge: {
+        paddingHorizontal: SPACING.s,
+        paddingVertical: 4,
+        borderRadius: 12,
+        backgroundColor: COLORS.surface,
+    },
+    badgeActive: {
+        backgroundColor: `${COLORS.success}20`,
+    },
+    badgeText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: COLORS.textSecondary,
+    },
+    badgeTextActive: {
+        color: COLORS.success,
+    },
+    pendingBadge: {
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    pendingText: {
+        color: '#FFF',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    footer: {
+        alignItems: 'center',
+        marginTop: SPACING.xl,
+        marginBottom: SPACING.xl,
+    },
+    footerText: {
+        ...TYPOGRAPHY.body,
+        color: COLORS.textSecondary,
+    } as any,
+    footerSubtext: {
+        ...TYPOGRAPHY.small,
+        color: COLORS.textSecondary,
+        opacity: 0.6,
+    } as any,
 });
-
