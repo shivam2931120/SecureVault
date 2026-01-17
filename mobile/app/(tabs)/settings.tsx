@@ -80,6 +80,13 @@ export default function SettingsScreen() {
                         onPress={() => { }}
                     />
                     <SettingItem
+                        icon="warning-outline"
+                        title="Intruder Alerts"
+                        subtitle="View unauthorized access attempts"
+                        onPress={() => router.push('/settings/intruders')}
+                        danger={false} // Maybe make it danger if there are unread? Too complex for now
+                    />
+                    <SettingItem
                         icon="key"
                         title="Autofill"
                         subtitle="Fill passwords in apps"

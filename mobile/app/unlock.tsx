@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, ActivityIndicator, Animated } from 'react-native';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { IntruderCapture, IntruderCaptureRef } from '@/components/IntruderCapture';
 
 export default function UnlockScreen() {
     const {
@@ -19,6 +20,10 @@ export default function UnlockScreen() {
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [shakeAnim] = useState(new Animated.Value(0));
+
+    // Intruder detection
+    const [failedAttempts, setFailedAttempts] = useState(0);
+    const intruderRef = useRef<IntruderCaptureRef>(null);
 
     useEffect(() => {
         if (isAuthenticated) {
@@ -51,6 +56,9 @@ export default function UnlockScreen() {
             const success = await unlockWithBiometrics();
             if (!success) {
                 setError('Biometric unlock failed');
+                // Optional: count biometric failures too?
+            } else {
+                setFailedAttempts(0);
             }
         } catch (e) {
             setError('Biometric unlock failed');
@@ -73,6 +81,16 @@ export default function UnlockScreen() {
                 setError('Incorrect password');
                 setPassword('');
                 shake();
+
+                // Intruder logic
+                const newCount = failedAttempts + 1;
+                setFailedAttempts(newCount);
+                if (newCount >= 3) {
+                    // Silently capture intruder
+                    intruderRef.current?.capture();
+                }
+            } else {
+                setFailedAttempts(0);
             }
         } catch (e) {
             setError('Failed to unlock');
@@ -85,6 +103,9 @@ export default function UnlockScreen() {
 
     return (
         <View style={styles.container}>
+            {/* Hidden Camera for Intruder Detection */}
+            <IntruderCapture ref={intruderRef} />
+
             <View style={styles.iconContainer}>
                 <Ionicons name="lock-closed" size={80} color={COLORS.primary} />
             </View>
@@ -280,3 +301,4 @@ const styles = StyleSheet.create({
         marginTop: SPACING.xl,
     },
 });
+
