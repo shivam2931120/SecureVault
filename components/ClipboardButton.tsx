@@ -16,21 +16,34 @@ export function ClipboardButton({ text, duration = 15000 }: ClipboardButtonProps
   const { showToast } = useUIStore();
 
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setInterval(() => {
-        setCountdown((prev) => prev - 1);
-      }, 1000);
-      return () => clearInterval(timer);
-    } else if (countdown === 0 && copied) {
-      setCopied(false);
+    if (!copied) {
+      return;
     }
-  }, [countdown, copied]);
+
+    const intervalId = window.setInterval(() => {
+      setCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    const resetId = window.setTimeout(() => {
+      setCopied(false);
+      setCountdown(0);
+    }, duration);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.clearTimeout(resetId);
+    };
+  }, [copied, duration]);
 
   const handleCopy = async () => {
-    await copyToClipboard(text, duration);
-    setCopied(true);
-    setCountdown(Math.floor(duration / 1000));
-    showToast('Copied to clipboard. Will clear in 15s', 'success');
+    try {
+      await copyToClipboard(text, duration);
+      const seconds = Math.floor(duration / 1000);
+      setCopied(true);
+      setCountdown(seconds);
+      showToast(`Copied to clipboard. Will clear in ${seconds}s`, 'success');
+    } catch {
+      showToast('Clipboard permission denied', 'error');
+    }
   };
 
   return (

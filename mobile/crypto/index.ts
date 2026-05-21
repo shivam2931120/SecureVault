@@ -1,101 +1,51 @@
-import { Platform } from 'react-native';
 import * as ExpoCrypto from 'expo-crypto';
+import { gcm } from '@noble/ciphers/aes.js';
+import { pbkdf2Async } from '@noble/hashes/pbkdf2.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 
-// Configuration
 const PBKDF2_ITERATIONS = 100000;
-const KEY_LENGTH = 32; // 256 bits in bytes
+const KEY_LENGTH = 32;
 
-/**
- * Generate a random salt
- */
 export function generateSalt(): Uint8Array {
     return ExpoCrypto.getRandomBytes(16);
 }
 
-/**
- * Generate a random IV for AES-GCM
- */
 export function generateIV(): Uint8Array {
     return ExpoCrypto.getRandomBytes(12);
 }
 
-/**
- * Simple key derivation using SHA-256 hash iterations
- * Note: This is a simplified PBKDF2-like implementation for Expo managed workflow
- * For production, consider using a native module or server-side key derivation
- */
 export async function deriveMasterKey(password: string, salt: Uint8Array): Promise<string> {
     const encoder = new TextEncoder();
     const passwordBytes = encoder.encode(password);
+    const keyBytes = await pbkdf2Async(sha256, passwordBytes, salt, {
+        c: PBKDF2_ITERATIONS,
+        dkLen: KEY_LENGTH,
+        asyncTick: 10,
+    });
 
-    // Combine password and salt
-    const combined = new Uint8Array(passwordBytes.length + salt.length);
-    combined.set(passwordBytes, 0);
-    combined.set(salt, passwordBytes.length);
-
-    // Hash multiple times to simulate PBKDF2
-    let hash = await ExpoCrypto.digestStringAsync(
-        ExpoCrypto.CryptoDigestAlgorithm.SHA256,
-        arrayBufferToHex(combined),
-        { encoding: ExpoCrypto.CryptoEncoding.HEX }
-    );
-
-    // Additional iterations for security
-    for (let i = 0; i < 1000; i++) {
-        hash = await ExpoCrypto.digestStringAsync(
-            ExpoCrypto.CryptoDigestAlgorithm.SHA256,
-            hash + arrayBufferToHex(salt),
-            { encoding: ExpoCrypto.CryptoEncoding.HEX }
-        );
-    }
-
-    return hash;
+    return arrayBufferToHex(keyBytes);
 }
 
-/**
- * Simple XOR-based encryption for Expo managed workflow
- * Note: For production, use proper AES encryption via native module
- */
 export async function encryptData(data: string, key: string, iv: Uint8Array): Promise<string> {
     const encoder = new TextEncoder();
     const dataBytes = encoder.encode(data);
     const keyBytes = hexToBytes(key);
+    const encrypted = gcm(keyBytes, iv).encrypt(dataBytes);
 
-    // XOR encryption with key stream derived from key + IV
-    const encrypted = new Uint8Array(dataBytes.length);
-    for (let i = 0; i < dataBytes.length; i++) {
-        const keyIndex = i % keyBytes.length;
-        const ivIndex = i % iv.length;
-        encrypted[i] = dataBytes[i] ^ keyBytes[keyIndex] ^ iv[ivIndex];
-    }
-
-    return arrayBufferToBase64(encrypted.buffer as ArrayBuffer);
+    return uint8ArrayToBase64(encrypted);
 }
 
-/**
- * Simple XOR-based decryption
- */
 export async function decryptData(encryptedBase64: string, key: string, iv: Uint8Array): Promise<string> {
     const encryptedBytes = base64ToUint8Array(encryptedBase64);
     const keyBytes = hexToBytes(key);
-
-    // XOR decryption (same as encryption due to XOR properties)
-    const decrypted = new Uint8Array(encryptedBytes.length);
-    for (let i = 0; i < encryptedBytes.length; i++) {
-        const keyIndex = i % keyBytes.length;
-        const ivIndex = i % iv.length;
-        decrypted[i] = encryptedBytes[i] ^ keyBytes[keyIndex] ^ iv[ivIndex];
-    }
+    const decrypted = gcm(keyBytes, iv).decrypt(encryptedBytes);
 
     const decoder = new TextDecoder();
     return decoder.decode(decrypted);
 }
 
-/**
- * Encrypt a vault item (object) for storage
- */
 export async function encryptVaultItem(
-    item: any,
+    item: unknown,
     masterKey: string
 ): Promise<{ encryptedData: string; iv: string }> {
     const iv = generateIV();
@@ -108,31 +58,27 @@ export async function encryptVaultItem(
     };
 }
 
-/**
- * Decrypt a vault item from storage
- */
 export async function decryptVaultItem(
     encryptedData: string,
     ivBase64: string,
     masterKey: string
-): Promise<any> {
+): Promise<unknown> {
     const iv = base64ToUint8Array(ivBase64);
     const decrypted = await decryptData(encryptedData, masterKey, iv);
     return JSON.parse(decrypted);
 }
 
-// Helper functions for Base64 conversion
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
     let binary = '';
     for (let i = 0; i < bytes.byteLength; i++) {
         binary += String.fromCharCode(bytes[i]);
     }
-    // Use built-in btoa on web, manual encoding on native
+
     if (typeof btoa !== 'undefined') {
         return btoa(binary);
     }
-    // Fallback for React Native
+
     const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
     let result = '';
     for (let i = 0; i < binary.length; i += 3) {
@@ -149,7 +95,6 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 export function base64ToArrayBuffer(base64: string): ArrayBuffer {
-    // Use built-in atob on web
     if (typeof atob !== 'undefined') {
         const binary = atob(base64);
         const bytes = new Uint8Array(binary.length);
@@ -159,7 +104,6 @@ export function base64ToArrayBuffer(base64: string): ArrayBuffer {
         return bytes.buffer;
     }
 
-    // Fallback for React Native
     const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
     const binary: number[] = [];
     let buffer = 0;
@@ -183,7 +127,8 @@ export function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 
 export function uint8ArrayToBase64(array: Uint8Array): string {
-    return arrayBufferToBase64(array.buffer as ArrayBuffer);
+    const buffer = array.buffer.slice(array.byteOffset, array.byteOffset + array.byteLength);
+    return arrayBufferToBase64(buffer as ArrayBuffer);
 }
 
 export function base64ToUint8Array(base64: string): Uint8Array {
@@ -193,24 +138,26 @@ export function base64ToUint8Array(base64: string): Uint8Array {
 function arrayBufferToHex(buffer: ArrayBuffer | Uint8Array): string {
     const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
     return Array.from(bytes)
-        .map(b => b.toString(16).padStart(2, '0'))
+        .map((byte) => byte.toString(16).padStart(2, '0'))
         .join('');
 }
 
 function hexToBytes(hex: string): Uint8Array {
+    if (!/^[a-f0-9]{64}$/i.test(hex)) {
+        throw new Error('Invalid key format');
+    }
+
     const bytes = new Uint8Array(hex.length / 2);
     for (let i = 0; i < hex.length; i += 2) {
-        bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+        bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
     }
     return bytes;
 }
 
-// Export key as JSON string (for AsyncStorage)
 export async function exportKey(key: string): Promise<{ k: string }> {
     return { k: key };
 }
 
-// Import key from JSON
 export async function importKey(jwk: { k: string }): Promise<string> {
     return jwk.k;
 }

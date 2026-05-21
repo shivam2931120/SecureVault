@@ -1,7 +1,7 @@
 # SecureVault - Project Summary
 
 ## Project Overview
-SecureVault is a fully functional, production-ready zero-knowledge password and data vault built with Next.js 15, TypeScript, and military-grade encryption. The project follows the specification exactly and implements a premium dark UI theme inspired by Bitwarden and 1Password.
+SecureVault is a fully functional, production-ready zero-knowledge password and data vault built with Next.js 16, TypeScript, and military-grade encryption. The project follows the specification exactly and implements a premium dark UI theme inspired by Bitwarden and 1Password.
 
 ## ✅ Completed Features
 
@@ -92,7 +92,7 @@ SecureVault is a fully functional, production-ready zero-knowledge password and 
 ## 🏗️ Architecture
 
 ### Frontend
-- **Framework**: Next.js 15 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript 5
 - **Styling**: Tailwind CSS (custom theme)
 - **Animations**: Framer Motion
@@ -367,7 +367,7 @@ SecureVault is a **complete, production-ready** implementation of a zero-knowled
 10. ✅ Is deployable to production
 
 The project demonstrates strong knowledge of:
-- Modern web development (Next.js 15, TypeScript)
+- Modern web development (Next.js 16, TypeScript)
 - Cryptography (AES, PBKDF2, Web Crypto API)
 - Zero-knowledge architecture
 - State management (Zustand)

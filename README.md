@@ -1,6 +1,6 @@
 # SecureVault - Zero-Knowledge Password & Data Vault ✅ **UI REBUILT!**
 
-A production-grade, zero-knowledge password and sensitive data vault built with Next.js 15, TypeScript, and military-grade encryption.
+A production-grade, zero-knowledge password and sensitive data vault built with Next.js 16, TypeScript, and military-grade encryption.
 
 ![SecureVault](https://img.shields.io/badge/Security-Zero--Knowledge-blue)
 ![Next.js](https://img.shields.io/badge/Next.js-15-black)
@@ -56,7 +56,7 @@ A production-grade, zero-knowledge password and sensitive data vault built with 
 ## Tech Stack
 
 ### Frontend
-- **Framework**: Next.js 15 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
 - **Animations**: Framer Motion
@@ -90,6 +90,22 @@ npm run dev
 4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 The application works out of the box with an in-memory mock database - no Supabase setup required for development!
+
+### Verification
+
+Run the standard web checks:
+
+```bash
+npm run lint
+npm run build
+npm audit --omit=dev
+```
+
+With the dev server running, verify the encrypted auth and vault API workflow:
+
+```bash
+npm run verify:api
+```
 
 ## Usage
 
@@ -176,28 +192,36 @@ To use Supabase instead of the mock database:
 2. Run this SQL in your Supabase SQL editor:
 
 ```sql
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email VARCHAR(255) UNIQUE NOT NULL,
-  salt VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW()
+  email TEXT UNIQUE NOT NULL,
+  salt TEXT NOT NULL,
+  verifier_encrypted_data TEXT NOT NULL,
+  verifier_iv TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE vault_items (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  item_type VARCHAR(50) NOT NULL,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  item_type TEXT NOT NULL,
   encrypted_data TEXT NOT NULL,
-  iv VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  iv TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_vault_items_user_id ON vault_items(user_id);
 ```
 
 3. Add credentials to `.env.local`:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
 ## Browser Support

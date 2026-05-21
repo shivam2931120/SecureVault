@@ -1,7 +1,7 @@
 import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { View, StyleSheet } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useIntruderStore } from '@/store/intruderStore';
 
 export interface IntruderCaptureRef {

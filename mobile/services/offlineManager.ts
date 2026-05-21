@@ -1,11 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_URL } from '@/utils/constants';
 
 export interface SyncQueueItem {
     id: string;
     action: 'create' | 'update' | 'delete';
     itemType: string;
     itemId: string;
-    data?: any;
+    data?: Record<string, unknown>;
     timestamp: number;
     retryCount: number;
 }
@@ -113,8 +114,6 @@ class OfflineManager {
     }
 
     private async processSyncItem(item: SyncQueueItem): Promise<void> {
-        const API_URL = 'http://10.0.2.2:3000'; // TODO: Use from constants
-
         switch (item.action) {
             case 'create':
                 await fetch(`${API_URL}/api/vault`, {
@@ -132,11 +131,13 @@ class OfflineManager {
                 });
                 break;
 
-            case 'delete':
-                await fetch(`${API_URL}/api/vault/${item.itemId}`, {
+            case 'delete': {
+                const userId = typeof item.data?.userId === 'string' ? item.data.userId : '';
+                await fetch(`${API_URL}/api/vault/${item.itemId}?userId=${encodeURIComponent(userId)}`, {
                     method: 'DELETE',
                 });
                 break;
+            }
         }
     }
 

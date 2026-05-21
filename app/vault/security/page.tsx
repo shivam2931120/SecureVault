@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useVaultStore } from '@/stores/vaultStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useUIStore } from '@/stores/uiStore';
+import { decryptVaultItem } from '@/lib/crypto';
+import { getDisplayTitle } from '@/lib/vault';
+import { DecryptedVaultItem, VaultItem } from '@/types';
 import {
     ShieldCheckIcon,
     ExclamationTriangleIcon,
@@ -21,23 +25,65 @@ interface SecurityIssue {
 }
 
 export default function SecurityPage() {
-    const { items } = useVaultStore();
-    const { user } = useAuthStore();
+    const { items, setItems } = useVaultStore();
+    const { user, masterKey } = useAuthStore();
+    const { showToast } = useUIStore();
     const [issues, setIssues] = useState<SecurityIssue[]>([]);
     const [scanning, setScanning] = useState(true);
     const [score, setScore] = useState(100);
 
     useEffect(() => {
-        analyzeVault();
-    }, [items]);
+        const loadItems = async () => {
+            if (items.length > 0 || !user || !masterKey) {
+                return;
+            }
 
-    const analyzeVault = () => {
+            try {
+                const response = await fetch(`/api/vault?userId=${encodeURIComponent(user.id)}`);
+                const data = await response.json() as { items?: VaultItem[]; error?: string };
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load vault items');
+                }
+
+                const decrypted = await Promise.all((data.items ?? []).map(async (item) => {
+                    try {
+                        const decryptedData = await decryptVaultItem(item.encryptedData, item.iv, masterKey);
+                        if (!decryptedData || typeof decryptedData !== 'object') {
+                            return null;
+                        }
+
+                        const itemData = decryptedData as Partial<DecryptedVaultItem>;
+                        return {
+                            ...itemData,
+                            id: item.id,
+                            itemType: itemData.itemType ?? item.itemType,
+                            title: getDisplayTitle(itemData),
+                            createdAt: item.createdAt,
+                            updatedAt: item.updatedAt,
+                        } as DecryptedVaultItem;
+                    } catch {
+                        return null;
+                    }
+                }));
+
+                setItems(decrypted.filter((item): item is DecryptedVaultItem => item !== null));
+            } catch (error) {
+                const message = error instanceof Error ? error.message : 'Failed to load vault items';
+                showToast(message, 'error');
+            }
+        };
+
+        void loadItems();
+    }, [items.length, masterKey, setItems, showToast, user]);
+
+    const analyzeVault = useCallback(() => {
         setScanning(true);
         const foundIssues: SecurityIssue[] = [];
-        const passwords: Map<string, string[]> = new Map();
+        const passwords: Map<string, { id: string; title: string }[]> = new Map();
 
         // Analyze password items
-        const passwordItems = items.filter(item => item.itemType === 'password');
+        const passwordItems = items.filter(item => item.itemType === 'password' || item.itemType === 'login');
 
         passwordItems.forEach(item => {
             if (!item.password) return;
@@ -67,9 +113,9 @@ export default function SecurityPage() {
             // Track for reuse detection
             const existing = passwords.get(item.password);
             if (existing) {
-                existing.push(item.title);
+                existing.push({ id: item.id, title: item.title });
             } else {
-                passwords.set(item.password, [item.title]);
+                passwords.set(item.password, [{ id: item.id, title: item.title }]);
             }
 
             // Check for old passwords (mock - would need updatedAt comparison)
@@ -87,15 +133,15 @@ export default function SecurityPage() {
         });
 
         // Add reused password issues
-        passwords.forEach((titles, password) => {
-            if (titles.length > 1) {
-                titles.forEach(title => {
+        passwords.forEach((entries) => {
+            if (entries.length > 1) {
+                entries.forEach((entry) => {
                     foundIssues.push({
                         type: 'reused',
                         severity: 'high',
-                        itemId: items.find(i => i.title === title)?.id || '',
-                        itemTitle: title,
-                        message: `Password is reused across ${titles.length} accounts.`,
+                        itemId: entry.id,
+                        itemTitle: entry.title,
+                        message: `Password is reused across ${entries.length} accounts.`,
                     });
                 });
             }
@@ -110,7 +156,11 @@ export default function SecurityPage() {
         setIssues(foundIssues);
         setScore(calculatedScore);
         setScanning(false);
-    };
+    }, [items]);
+
+    useEffect(() => {
+        analyzeVault();
+    }, [analyzeVault]);
 
     const getScoreColor = () => {
         if (score >= 80) return 'text-success';
@@ -118,10 +168,10 @@ export default function SecurityPage() {
         return 'text-danger';
     };
 
-    const getScoreBg = () => {
-        if (score >= 80) return 'bg-success';
-        if (score >= 50) return 'bg-warning';
-        return 'bg-danger';
+    const getScoreStroke = () => {
+        if (score >= 80) return 'text-success';
+        if (score >= 50) return 'text-warning';
+        return 'text-danger';
     };
 
     const getSeverityColor = (severity: string) => {
@@ -179,7 +229,7 @@ export default function SecurityPage() {
                                 stroke="currentColor"
                                 strokeWidth="8"
                                 strokeDasharray={`${(score / 100) * 352} 352`}
-                                className={getScoreBg()}
+                                className={getScoreStroke()}
                                 strokeLinecap="round"
                             />
                         </svg>

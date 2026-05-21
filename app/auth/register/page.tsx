@@ -8,8 +8,9 @@ import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { validateEmail } from '@/lib/utils';
-import { generateSalt, deriveMasterKey, uint8ArrayToBase64 } from '@/lib/crypto';
+import { createKeyVerifier, generateSalt, deriveMasterKey, uint8ArrayToBase64 } from '@/lib/crypto';
 import { LockClosedIcon } from '@heroicons/react/24/outline';
+import { User } from '@/types';
 import Link from 'next/link';
 
 export default function RegisterPage() {
@@ -18,14 +19,15 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { setUser, setMasterKey, setSalt } = useAuthStore();
+  const { setUser, setMasterKey, setSalt, setKeyVerifier } = useAuthStore();
   const { showToast } = useUIStore();
   const router = useRouter();
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validateEmail(email)) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!validateEmail(normalizedEmail)) {
       showToast('Please enter a valid email address', 'error');
       return;
     }
@@ -43,50 +45,39 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      // Check if we can reach the server first
-      console.log('[Register] Starting registration for:', email);
-      
-      // Generate unique salt for the user
       const saltArray = generateSalt();
       const saltBase64 = uint8ArrayToBase64(saltArray);
-      console.log('[Register] Salt generated');
-      
-      // Derive master key (this stays client-side only)
-      console.log('[Register] Deriving master key...');
       const masterKey = await deriveMasterKey(password, saltArray);
-      console.log('[Register] Master key derived');
+      const keyVerifier = await createKeyVerifier(masterKey);
 
-      // Register with backend (send only email and salt, never the password or key)
-      console.log('[Register] Sending request to /api/auth/register');
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, salt: saltBase64 }),
-      }).catch((err) => {
-        console.error('[Register] Network error:', err);
+        body: JSON.stringify({
+          email: normalizedEmail,
+          salt: saltBase64,
+          verifierEncryptedData: keyVerifier.encryptedData,
+          verifierIv: keyVerifier.iv,
+        }),
+      }).catch(() => {
         throw new Error('Network error: Could not reach server. Please check if the development server is running.');
       });
 
-      console.log('[Register] Response status:', response.status);
-      const data = await response.json();
-      console.log('[Register] Response data:', data);
+      const data = await response.json() as { error?: string; user?: User };
 
-      if (!response.ok) {
+      if (!response.ok || !data.user) {
         throw new Error(data.error || 'Registration failed');
       }
 
-      // Store user, key, and salt in auth store
-      console.log('[Register] Registration successful, storing auth data');
       setUser(data.user);
       setMasterKey(masterKey);
       setSalt(saltBase64);
+      setKeyVerifier(keyVerifier);
 
       showToast('Account created successfully!', 'success');
-      console.log('[Register] Redirecting to vault');
       router.push('/vault');
-    } catch (error: any) {
-      console.error('[Register] Error during registration:', error);
-      const errorMessage = error.message || 'Registration failed. Please try again.';
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Registration failed. Please try again.';
       showToast(errorMessage, 'error');
     } finally {
       setLoading(false);

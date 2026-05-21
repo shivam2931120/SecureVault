@@ -1,32 +1,33 @@
 import { NextResponse } from 'next/server';
-import { mockDB, useMockDB } from '@/lib/supabase';
+import { vaultDB } from '@/lib/supabase';
+import { jsonError, readJsonBody } from '@/lib/api';
+import { isValidEmail, normalizeEmail } from '@/lib/vault';
 
 export async function POST(request: Request) {
   try {
-    const { email } = await request.json();
+    const body = await readJsonBody(request);
+    const emailInput = typeof body === 'object' && body !== null && 'email' in body
+      ? body.email
+      : null;
 
-    if (!email) {
+    if (typeof emailInput !== 'string') {
       return NextResponse.json(
         { error: 'Email is required' },
         { status: 400 }
       );
     }
 
-    if (useMockDB()) {
-      // Use mock database
-      const user = await mockDB.login(email);
-      return NextResponse.json({ user, salt: user.salt }, { status: 200 });
+    const email = normalizeEmail(emailInput);
+    if (!isValidEmail(email)) {
+      return NextResponse.json(
+        { error: 'Invalid email address' },
+        { status: 400 }
+      );
     }
 
-    // TODO: Implement Supabase integration
-    return NextResponse.json(
-      { error: 'Supabase not configured' },
-      { status: 500 }
-    );
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || 'Login failed' },
-      { status: 401 }
-    );
+    const { salt, keyVerifier, ...user } = await vaultDB.login(email);
+    return NextResponse.json({ user, salt, keyVerifier }, { status: 200 });
+  } catch (error) {
+    return jsonError(error, 'Login failed', 401);
   }
 }

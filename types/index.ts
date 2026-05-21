@@ -1,3 +1,11 @@
+export type VaultItemType = 'password' | 'login' | 'note' | 'card' | 'apikey' | 'identity' | 'wifi';
+
+
+export interface KeyVerifier {
+  encryptedData: string;
+  iv: string;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -7,7 +15,7 @@ export interface User {
 export interface VaultItem {
   id: string;
   userId: string;
-  itemType: 'password' | 'note' | 'card' | 'apikey';
+  itemType: VaultItemType;
   encryptedData: string;
   iv: string;
   title?: string;
@@ -18,7 +26,7 @@ export interface VaultItem {
 
 export interface DecryptedVaultItem {
   id: string;
-  itemType: 'password' | 'note' | 'card' | 'apikey';
+  itemType: VaultItemType;
   title: string;
   username?: string;
   password?: string;
@@ -27,7 +35,9 @@ export interface DecryptedVaultItem {
   cardNumber?: string;
   cardExpiry?: string;
   cardCVV?: string;
+  cardHolder?: string;
   apiKey?: string;
+  apiService?: string;
   tags?: string[];
   createdAt: string;
   updatedAt: string;

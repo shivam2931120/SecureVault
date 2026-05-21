@@ -1,6 +1,5 @@
 'use client';
 
-import { useUIStore } from '@/stores/uiStore';
 import { useAuthStore } from '@/stores/authStore';
 import {
   LockClosedIcon,

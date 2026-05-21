@@ -5,6 +5,7 @@
 
 const PBKDF2_ITERATIONS = 100000;
 const KEY_LENGTH = 256;
+const KEY_VERIFIER_CHALLENGE = 'securevault-key-verifier-v1';
 
 /**
  * Generate a random salt
@@ -135,6 +136,35 @@ export function base64ToUint8Array(base64: string): Uint8Array {
   return new Uint8Array(base64ToArrayBuffer(base64));
 }
 
+export async function createKeyVerifier(
+  key: CryptoKey
+): Promise<{ encryptedData: string; iv: string }> {
+  const iv = generateIV();
+  const encrypted = await encryptData(KEY_VERIFIER_CHALLENGE, key, iv);
+
+  return {
+    encryptedData: arrayBufferToBase64(encrypted),
+    iv: uint8ArrayToBase64(iv),
+  };
+}
+
+export async function verifyMasterKey(
+  key: CryptoKey,
+  verifier: { encryptedData: string; iv: string }
+): Promise<boolean> {
+  try {
+    const decrypted = await decryptData(
+      base64ToArrayBuffer(verifier.encryptedData),
+      key,
+      base64ToUint8Array(verifier.iv)
+    );
+
+    return decrypted === KEY_VERIFIER_CHALLENGE;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Hash password for authentication (NOT for encryption)
  */
@@ -145,8 +175,29 @@ export async function hashPassword(password: string, salt: string): Promise<stri
   return arrayBufferToBase64(hashBuffer);
 }
 
+function secureRandomInt(maxExclusive: number): number {
+  if (!Number.isSafeInteger(maxExclusive) || maxExclusive <= 0 || maxExclusive > 0xffffffff) {
+    throw new Error('Invalid random range');
+  }
+
+  const randomValue = new Uint32Array(1);
+  const range = 0x100000000;
+  const limit = range - (range % maxExclusive);
+
+  do {
+    crypto.getRandomValues(randomValue);
+  } while (randomValue[0] >= limit);
+
+  return randomValue[0] % maxExclusive;
+}
+
+function pickRandomCharacter(charset: string): string {
+  return charset[secureRandomInt(charset.length)];
+}
+
 /**
- * Generate a secure random password
+ * Generate a secure random password.
+ * Ensures each selected character class appears at least once.
  */
 export function generatePassword(
   length: number = 16,
@@ -155,32 +206,38 @@ export function generatePassword(
   includeNumbers: boolean = true,
   includeSymbols: boolean = true
 ): string {
-  let charset = '';
-  if (includeUppercase) charset += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  if (includeLowercase) charset += 'abcdefghijklmnopqrstuvwxyz';
-  if (includeNumbers) charset += '0123456789';
-  if (includeSymbols) charset += '!@#$%^&*()_+-=[]{}|;:,.<>?';
+  const groups = [
+    includeUppercase ? 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' : '',
+    includeLowercase ? 'abcdefghijklmnopqrstuvwxyz' : '',
+    includeNumbers ? '0123456789' : '',
+    includeSymbols ? '!@#$%^&*()_+-=[]{}|;:,.<>?' : '',
+  ].filter(Boolean);
 
-  if (charset.length === 0) {
-    charset = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  if (groups.length === 0) {
+    groups.push('abcdefghijklmnopqrstuvwxyz', '0123456789');
   }
 
-  const randomValues = new Uint8Array(length);
-  crypto.getRandomValues(randomValues);
+  const passwordLength = Math.max(Math.floor(length), groups.length, 1);
+  const charset = groups.join('');
+  const characters: string[] = groups.map(pickRandomCharacter);
 
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += charset[randomValues[i] % charset.length];
+  while (characters.length < passwordLength) {
+    characters.push(pickRandomCharacter(charset));
   }
 
-  return password;
+  for (let index = characters.length - 1; index > 0; index--) {
+    const swapIndex = secureRandomInt(index + 1);
+    [characters[index], characters[swapIndex]] = [characters[swapIndex], characters[index]];
+  }
+
+  return characters.join('');
 }
 
 /**
  * Encrypt vault item for storage
  */
 export async function encryptVaultItem(
-  item: any,
+  item: unknown,
   masterKey: CryptoKey
 ): Promise<{ encryptedData: string; iv: string }> {
   const iv = generateIV();
@@ -200,7 +257,7 @@ export async function decryptVaultItem(
   encryptedData: string,
   iv: string,
   masterKey: CryptoKey
-): Promise<any> {
+): Promise<unknown> {
   const encryptedBuffer = base64ToArrayBuffer(encryptedData);
   const ivArray = base64ToUint8Array(iv);
   const decrypted = await decryptData(encryptedBuffer, masterKey, ivArray);

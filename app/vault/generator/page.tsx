@@ -19,23 +19,40 @@ export default function GeneratorPage() {
   const { showToast } = useUIStore();
   const strength = assessPasswordStrength(password);
 
-  useEffect(() => {
-    generateNewPassword();
-  }, []);
-
   const generateNewPassword = () => {
-    const newPassword = generatePassword(
+    setPassword(generatePassword(
       length,
       includeUppercase,
       includeLowercase,
       includeNumbers,
       includeSymbols
-    );
-    setPassword(newPassword);
+    ));
+  };
+
+  const selectedOptionCount = [
+    includeUppercase,
+    includeLowercase,
+    includeNumbers,
+    includeSymbols,
+  ].filter(Boolean).length;
+
+  const setCharacterOption = (setter: (value: boolean) => void, checked: boolean) => {
+    if (!checked && selectedOptionCount === 1) {
+      showToast('Select at least one character type', 'warning');
+      return;
+    }
+
+    setter(checked);
   };
 
   useEffect(() => {
-    generateNewPassword();
+    setPassword(generatePassword(
+      length,
+      includeUppercase,
+      includeLowercase,
+      includeNumbers,
+      includeSymbols
+    ));
   }, [length, includeUppercase, includeLowercase, includeNumbers, includeSymbols]);
 
   return (
@@ -140,7 +157,7 @@ export default function GeneratorPage() {
                 <input
                   type="checkbox"
                   checked={includeUppercase}
-                  onChange={(e) => setIncludeUppercase(e.target.checked)}
+                  onChange={(e) => setCharacterOption(setIncludeUppercase, e.target.checked)}
                   className="w-5 h-5 rounded border-border bg-surface text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 />
                 <span className="text-text-primary group-hover:text-primary transition-colors">
@@ -152,7 +169,7 @@ export default function GeneratorPage() {
                 <input
                   type="checkbox"
                   checked={includeLowercase}
-                  onChange={(e) => setIncludeLowercase(e.target.checked)}
+                  onChange={(e) => setCharacterOption(setIncludeLowercase, e.target.checked)}
                   className="w-5 h-5 rounded border-border bg-surface text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 />
                 <span className="text-text-primary group-hover:text-primary transition-colors">
@@ -164,7 +181,7 @@ export default function GeneratorPage() {
                 <input
                   type="checkbox"
                   checked={includeNumbers}
-                  onChange={(e) => setIncludeNumbers(e.target.checked)}
+                  onChange={(e) => setCharacterOption(setIncludeNumbers, e.target.checked)}
                   className="w-5 h-5 rounded border-border bg-surface text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 />
                 <span className="text-text-primary group-hover:text-primary transition-colors">
@@ -176,7 +193,7 @@ export default function GeneratorPage() {
                 <input
                   type="checkbox"
                   checked={includeSymbols}
-                  onChange={(e) => setIncludeSymbols(e.target.checked)}
+                  onChange={(e) => setCharacterOption(setIncludeSymbols, e.target.checked)}
                   className="w-5 h-5 rounded border-border bg-surface text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 />
                 <span className="text-text-primary group-hover:text-primary transition-colors">

@@ -48,7 +48,7 @@ export default function VaultLayout({
       } else {
         showToast('Invalid password', 'error');
       }
-    } catch (error) {
+    } catch {
       showToast('Failed to unlock vault', 'error');
     } finally {
       setUnlocking(false);

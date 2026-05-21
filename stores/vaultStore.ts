@@ -1,11 +1,11 @@
 import { create } from 'zustand';
-import { DecryptedVaultItem } from '@/types';
+import { DecryptedVaultItem, VaultItemType } from '@/types';
 
 interface VaultState {
   items: DecryptedVaultItem[];
   selectedItem: DecryptedVaultItem | null;
   searchQuery: string;
-  filterType: 'all' | 'password' | 'note' | 'card' | 'apikey';
+  filterType: 'all' | VaultItemType;
   isLocked: boolean;
   lastActivity: number;
   setItems: (items: DecryptedVaultItem[]) => void;
@@ -14,7 +14,7 @@ interface VaultState {
   deleteItem: (id: string) => void;
   setSelectedItem: (item: DecryptedVaultItem | null) => void;
   setSearchQuery: (query: string) => void;
-  setFilterType: (type: 'all' | 'password' | 'note' | 'card' | 'apikey') => void;
+  setFilterType: (type: 'all' | VaultItemType) => void;
   setLocked: (locked: boolean) => void;
   updateActivity: () => void;
 }

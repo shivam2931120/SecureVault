@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,6 +14,24 @@ const AUTH_KEYS = {
     MASTER_KEY: 'encrypted_master_key',
     USER_ID: 'local_user_id',
 };
+
+async function setSensitiveItem(key: string, value: string): Promise<void> {
+    if (Platform.OS === 'web') {
+        await AsyncStorage.setItem(key, value);
+        return;
+    }
+
+    await SecureStore.setItemAsync(key, value);
+}
+
+async function getSensitiveItem(key: string): Promise<string | null> {
+    if (Platform.OS === 'web') {
+        return AsyncStorage.getItem(key);
+    }
+
+    return SecureStore.getItemAsync(key);
+}
+
 
 interface AuthState {
     isSetupComplete: boolean;
@@ -37,7 +56,7 @@ interface AuthState {
     logout: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
     isSetupComplete: false,
     isAuthenticated: false,
     isLoading: true,
@@ -92,7 +111,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
             // Save to storage
             await AsyncStorage.setItem(AUTH_KEYS.SALT, saltBase64);
-            await AsyncStorage.setItem(AUTH_KEYS.MASTER_KEY, JSON.stringify(exportedKey));
+            await setSensitiveItem(AUTH_KEYS.MASTER_KEY, JSON.stringify(exportedKey));
             await AsyncStorage.setItem(AUTH_KEYS.USER_ID, userId);
             await AsyncStorage.setItem(AUTH_KEYS.IS_SETUP_COMPLETE, 'true');
 
@@ -134,7 +153,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     unlockWithPassword: async (password) => {
         try {
             const saltBase64 = await AsyncStorage.getItem(AUTH_KEYS.SALT);
-            const storedKeyJson = await AsyncStorage.getItem(AUTH_KEYS.MASTER_KEY);
+            const storedKeyJson = await getSensitiveItem(AUTH_KEYS.MASTER_KEY);
             const userId = await AsyncStorage.getItem(AUTH_KEYS.USER_ID);
 
             if (!saltBase64 || !storedKeyJson || !userId) {
@@ -178,7 +197,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
             if (result.success) {
                 // Load the stored master key directly
-                const storedKeyJson = await AsyncStorage.getItem(AUTH_KEYS.MASTER_KEY);
+                const storedKeyJson = await getSensitiveItem(AUTH_KEYS.MASTER_KEY);
                 const userId = await AsyncStorage.getItem(AUTH_KEYS.USER_ID);
 
                 if (storedKeyJson && userId) {

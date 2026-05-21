@@ -1,7 +1,7 @@
 'use client';
 
+import { useEffect, useId } from 'react';
 import { motion } from 'framer-motion';
-import { useUIStore } from '@/stores/uiStore';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 
 interface ModalProps {
@@ -19,6 +19,23 @@ export function Modal({
   children,
   maxWidth = 'max-w-md',
 }: ModalProps) {
+  const titleId = useId();
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -35,9 +52,12 @@ export function Modal({
         exit={{ scale: 0.95, opacity: 0 }}
         className={`relative w-full ${maxWidth} bg-card border border-border rounded-lg shadow-2xl`}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
       >
         <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-xl font-semibold text-text-primary">{title}</h2>
+          <h2 id={titleId} className="text-xl font-semibold text-text-primary">{title}</h2>
           <button
             onClick={onClose}
             className="text-text-secondary hover:text-text-primary transition-colors"

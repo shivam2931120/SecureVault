@@ -3,11 +3,22 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/theme';
 import { useVaultStore } from '@/store/vaultStore';
 import { useAuthStore } from '@/store/authStore';
-import { VaultItemType, ITEM_TYPE_META } from '@/types/vault';
+import {
+    VaultItemType,
+    ITEM_TYPE_META,
+    LoginData,
+    CardData,
+    NoteData,
+    IdentityData,
+    ApiKeyData,
+    WifiData,
+} from '@/types/vault';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
 const ITEM_TYPES: VaultItemType[] = ['login', 'card', 'note', 'identity', 'apikey', 'wifi'];
+
+type VaultItemData = LoginData | CardData | NoteData | IdentityData | ApiKeyData | WifiData;
 
 export default function AddItemScreen() {
     const [selectedType, setSelectedType] = useState<VaultItemType>('login');
@@ -49,7 +60,7 @@ export default function AddItemScreen() {
     const { addItem } = useVaultStore();
     const { userId, masterKey } = useAuthStore();
 
-    const getDataForType = () => {
+    const getDataForType = (): VaultItemData => {
         switch (selectedType) {
             case 'login':
                 return { username, password, url, totp, notes };
@@ -64,7 +75,7 @@ export default function AddItemScreen() {
             case 'wifi':
                 return { ssid, password: wifiPassword, securityType, notes };
             default:
-                return {};
+                throw new Error('Unsupported item type');
         }
     };
 

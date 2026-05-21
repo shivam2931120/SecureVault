@@ -7,6 +7,15 @@ import { useAuthStore } from '@/stores/authStore';
 import { useVaultStore } from '@/stores/vaultStore';
 import { useUIStore } from '@/stores/uiStore';
 import { encryptVaultItem } from '@/lib/crypto';
+import {
+    buildVaultItemData,
+    emptyVaultItemFormData,
+    toDecryptedVaultItem,
+    validateVaultItemForm,
+    VaultItemFormData,
+    WebVaultItemType,
+} from '@/lib/vaultForm';
+import { VaultItem } from '@/types';
 import { SecureInput } from '@/components/SecureInput';
 import {
     KeyIcon,
@@ -16,28 +25,11 @@ import {
     ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 
-type ItemType = 'password' | 'note' | 'card' | 'apikey';
-
-interface FormData {
-    title: string;
-    username: string;
-    password: string;
-    url: string;
-    note: string;
-    cardNumber: string;
-    cardExpiry: string;
-    cardCVV: string;
-    cardHolder: string;
-    apiKey: string;
-    apiService: string;
-    tags: string;
-}
-
 const itemTypes = [
-    { id: 'password' as ItemType, label: 'Password', icon: KeyIcon, color: 'text-primary' },
-    { id: 'note' as ItemType, label: 'Secure Note', icon: DocumentTextIcon, color: 'text-success' },
-    { id: 'card' as ItemType, label: 'Credit Card', icon: CreditCardIcon, color: 'text-warning' },
-    { id: 'apikey' as ItemType, label: 'API Key', icon: CodeBracketIcon, color: 'text-danger' },
+    { id: 'password' as WebVaultItemType, label: 'Password', icon: KeyIcon, color: 'text-primary' },
+    { id: 'note' as WebVaultItemType, label: 'Secure Note', icon: DocumentTextIcon, color: 'text-success' },
+    { id: 'card' as WebVaultItemType, label: 'Credit Card', icon: CreditCardIcon, color: 'text-warning' },
+    { id: 'apikey' as WebVaultItemType, label: 'API Key', icon: CodeBracketIcon, color: 'text-danger' },
 ];
 
 export default function AddItemPage() {
@@ -46,32 +38,20 @@ export default function AddItemPage() {
     const { addItem } = useVaultStore();
     const { showToast } = useUIStore();
 
-    const [selectedType, setSelectedType] = useState<ItemType>('password');
+    const [selectedType, setSelectedType] = useState<WebVaultItemType>('password');
     const [saving, setSaving] = useState(false);
-    const [formData, setFormData] = useState<FormData>({
-        title: '',
-        username: '',
-        password: '',
-        url: '',
-        note: '',
-        cardNumber: '',
-        cardExpiry: '',
-        cardCVV: '',
-        cardHolder: '',
-        apiKey: '',
-        apiService: '',
-        tags: '',
-    });
+    const [formData, setFormData] = useState<VaultItemFormData>(emptyVaultItemFormData);
 
-    const handleInputChange = (field: keyof FormData, value: string) => {
+    const handleInputChange = (field: keyof VaultItemFormData, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!formData.title) {
-            showToast('Please enter a title', 'error');
+        const validationError = validateVaultItemForm(selectedType, formData);
+        if (validationError) {
+            showToast(validationError, 'error');
             return;
         }
 
@@ -84,38 +64,9 @@ export default function AddItemPage() {
         setSaving(true);
 
         try {
-            // Build item data based on type
-            const itemData: Record<string, any> = {
-                title: formData.title,
-                itemType: selectedType,
-                tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
-            };
-
-            switch (selectedType) {
-                case 'password':
-                    itemData.username = formData.username;
-                    itemData.password = formData.password;
-                    itemData.url = formData.url;
-                    break;
-                case 'note':
-                    itemData.note = formData.note;
-                    break;
-                case 'card':
-                    itemData.cardNumber = formData.cardNumber;
-                    itemData.cardExpiry = formData.cardExpiry;
-                    itemData.cardCVV = formData.cardCVV;
-                    itemData.cardHolder = formData.cardHolder;
-                    break;
-                case 'apikey':
-                    itemData.apiKey = formData.apiKey;
-                    itemData.apiService = formData.apiService;
-                    break;
-            }
-
-            // Encrypt the item
+            const itemData = buildVaultItemData(selectedType, formData);
             const { encryptedData, iv } = await encryptVaultItem(itemData, masterKey);
 
-            // Save to backend
             const response = await fetch('/api/vault', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -127,38 +78,30 @@ export default function AddItemPage() {
                 }),
             });
 
-            const data = await response.json();
+            const data = await response.json() as { item?: VaultItem; error?: string };
 
-            if (!response.ok) {
+            if (!response.ok || !data.item) {
                 throw new Error(data.error || 'Failed to save item');
             }
 
-            // Add to local store with proper typing
-            addItem({
-                id: data.item.id,
-                itemType: selectedType,
-                title: formData.title,
-                username: formData.username || undefined,
-                password: formData.password || undefined,
-                url: formData.url || undefined,
-                note: formData.note || undefined,
-                cardNumber: formData.cardNumber || undefined,
-                cardExpiry: formData.cardExpiry || undefined,
-                cardCVV: formData.cardCVV || undefined,
-                apiKey: formData.apiKey || undefined,
-                tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
-                createdAt: data.item.createdAt,
-                updatedAt: data.item.updatedAt,
-            });
+            addItem(toDecryptedVaultItem(
+                data.item.id,
+                selectedType,
+                formData,
+                data.item.createdAt,
+                data.item.updatedAt
+            ));
 
             showToast('Item saved successfully!', 'success');
             router.push('/vault');
-        } catch (error: any) {
-            showToast(error.message || 'Failed to save item', 'error');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to save item';
+            showToast(message, 'error');
         } finally {
             setSaving(false);
         }
     };
+
 
     return (
         <div className="max-w-2xl mx-auto">

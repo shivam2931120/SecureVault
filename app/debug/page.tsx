@@ -1,17 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CheckCircleIcon, XCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
 export default function DebugPage() {
   const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [apiTests, setApiTests] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
-    checkServer();
-  }, []);
-
-  const checkServer = async () => {
+  const checkServer = useCallback(async () => {
     setServerStatus('checking');
     const tests: Record<string, boolean> = {};
 
@@ -23,26 +19,33 @@ export default function DebugPage() {
       
       tests['Server Reachable'] = healthResponse !== null;
 
-      // Test 2: Can we make a POST request?
+      // Test 2: Can we make a POST request without mutating data?
       const registerTest = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'test@test.com', salt: 'testsalt' }),
+        body: JSON.stringify({}),
       }).catch(() => null);
       
       tests['POST Request Works'] = registerTest !== null;
-      tests['Register Endpoint'] = registerTest?.status === 201 || registerTest?.status === 400;
+      tests['Register Validation'] = registerTest?.status === 400;
 
       // Test 3: Browser online status
       tests['Browser Online'] = navigator.onLine;
 
       setApiTests(tests);
       setServerStatus(Object.values(tests).every(Boolean) ? 'online' : 'offline');
-    } catch (error) {
-      console.error('Debug error:', error);
+    } catch {
       setServerStatus('offline');
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      void checkServer();
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
+  }, [checkServer]);
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -117,7 +120,7 @@ export default function DebugPage() {
               <li>Try opening the browser console (F12) and check for errors</li>
               <li>Clear your browser cache and cookies</li>
               <li>Try disabling browser extensions</li>
-              <li>Make sure you're not in browser offline mode (check bottom right of dev tools)</li>
+              <li>Make sure you&apos;re not in browser offline mode (check bottom right of dev tools)</li>
             </ol>
           </div>
 

@@ -1,41 +1,58 @@
 import { NextResponse } from 'next/server';
-import { mockDB, useMockDB } from '@/lib/supabase';
+import { vaultDB } from '@/lib/supabase';
+import { jsonError, readJsonBody } from '@/lib/api';
+import { isBase64, isValidEmail, normalizeEmail } from '@/lib/vault';
 
 export async function POST(request: Request) {
   try {
-    const { email, salt } = await request.json();
+    const body = await readJsonBody(request);
+    const emailInput = typeof body === 'object' && body !== null && 'email' in body
+      ? body.email
+      : null;
+    const salt = typeof body === 'object' && body !== null && 'salt' in body
+      ? body.salt
+      : null;
+    const verifierEncryptedData = typeof body === 'object' && body !== null && 'verifierEncryptedData' in body
+      ? body.verifierEncryptedData
+      : null;
+    const verifierIv = typeof body === 'object' && body !== null && 'verifierIv' in body
+      ? body.verifierIv
+      : null;
 
-    if (!email || !salt) {
+    if (typeof emailInput !== 'string' || typeof salt !== 'string' || typeof verifierEncryptedData !== 'string' || typeof verifierIv !== 'string') {
       return NextResponse.json(
-        { error: 'Email and salt are required' },
+        { error: 'Email, salt, and key verifier are required' },
         { status: 400 }
       );
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    const email = normalizeEmail(emailInput);
+    if (!isValidEmail(email)) {
       return NextResponse.json(
         { error: 'Invalid email address' },
         { status: 400 }
       );
     }
 
-    if (useMockDB()) {
-      // Use mock database
-      const user = await mockDB.register(email, salt);
-      return NextResponse.json({ user }, { status: 201 });
+    if (!isBase64(salt) || !isBase64(verifierEncryptedData) || !isBase64(verifierIv)) {
+      return NextResponse.json(
+        { error: 'Invalid salt or verifier format' },
+        { status: 400 }
+      );
     }
 
-    // TODO: Implement Supabase integration
-    return NextResponse.json(
-      { error: 'Supabase not configured' },
-      { status: 500 }
-    );
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || 'Registration failed' },
-      { status: 400 }
-    );
+    const registeredUser = await vaultDB.register(email, salt, {
+      encryptedData: verifierEncryptedData,
+      iv: verifierIv,
+    });
+    return NextResponse.json({
+      user: {
+        id: registeredUser.id,
+        email: registeredUser.email,
+        createdAt: registeredUser.createdAt,
+      },
+    }, { status: 201 });
+  } catch (error) {
+    return jsonError(error, 'Registration failed', 400);
   }
 }

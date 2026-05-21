@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Toast } from "@/components/Toast";
 
 export const metadata: Metadata = {
   title: "SecureVault - Zero-Knowledge Password Vault",
@@ -15,6 +16,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         {children}
+        <Toast />
       </body>
     </html>
   );

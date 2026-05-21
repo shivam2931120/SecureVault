@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
+    "@noble/ciphers": "^2.2.0",
+    "@noble/hashes": "^2.2.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/slider": "5.0.1",
     "clsx": "^2.1.1",
@@ -45,5 +47,8 @@
     "@types/react": "~19.1.0",
     "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "postcss": "^8.5.10"
+  }
 }

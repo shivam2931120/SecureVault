@@ -1,14 +1,59 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
-import { Toast } from './Toast';
+import { useAuthStore } from '@/stores/authStore';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { useUIStore } from '@/stores/uiStore';
+import { useVaultStore } from '@/stores/vaultStore';
 
 interface AppShellProps {
   children: ReactNode;
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const lock = useAuthStore((state) => state.lock);
+  const autoLockTimeout = useSettingsStore((state) => state.autoLockTimeout);
+  const showToast = useUIStore((state) => state.showToast);
+  const updateActivity = useVaultStore((state) => state.updateActivity);
+
+  useEffect(() => {
+    if (autoLockTimeout === 0) {
+      return;
+    }
+
+    const activityEvents: Array<keyof WindowEventMap> = [
+      'click',
+      'keydown',
+      'mousemove',
+      'scroll',
+      'touchstart',
+    ];
+    const timeoutMs = autoLockTimeout * 60 * 1000;
+    const recordActivity = () => updateActivity();
+
+    activityEvents.forEach((eventName) => {
+      window.addEventListener(eventName, recordActivity, { passive: true });
+    });
+
+    const intervalId = window.setInterval(() => {
+      const { lastActivity } = useVaultStore.getState();
+      if (Date.now() - lastActivity >= timeoutMs) {
+        lock();
+        showToast('Vault locked due to inactivity', 'info');
+      }
+    }, 5000);
+
+    recordActivity();
+
+    return () => {
+      window.clearInterval(intervalId);
+      activityEvents.forEach((eventName) => {
+        window.removeEventListener(eventName, recordActivity);
+      });
+    };
+  }, [autoLockTimeout, lock, showToast, updateActivity]);
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar - Fixed */}
@@ -37,9 +82,6 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </div>
       </main>
-
-      {/* Toast Container - Highest z-index */}
-      <Toast />
     </div>
   );
 }

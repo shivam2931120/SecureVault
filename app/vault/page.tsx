@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useVaultStore } from '@/stores/vaultStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -21,6 +21,9 @@ import {
   PencilIcon,
 } from '@heroicons/react/24/outline';
 import { decryptVaultItem } from '@/lib/crypto';
+import { getDisplayTitle, getSearchableVaultText } from '@/lib/vault';
+import { DecryptedVaultItem, VaultItem, VaultItemType } from '@/types';
+import { useRouter } from 'next/navigation';
 
 export default function VaultPage() {
   const [loading, setLoading] = useState(true);
@@ -38,53 +41,70 @@ export default function VaultPage() {
   } = useVaultStore();
   
   const { masterKey } = useAuthStore();
-  const { showToast, openModal } = useUIStore();
+  const { showToast } = useUIStore();
+  const router = useRouter();
 
-  useEffect(() => {
-    loadVaultItems();
-  }, []);
-
-  const loadVaultItems = async () => {
+  const loadVaultItems = useCallback(async () => {
     try {
       const { user } = useAuthStore.getState();
-      if (!user) {
-        showToast('Please login first', 'error');
+      if (!user || !masterKey) {
+        setItems([]);
         return;
       }
 
-      const response = await fetch(`/api/vault?userId=${user.id}`);
-      const data = await response.json();
+      const response = await fetch(`/api/vault?userId=${encodeURIComponent(user.id)}`);
+      const data = await response.json() as { items?: VaultItem[]; error?: string };
 
-      if (response.ok && masterKey) {
-        // Decrypt all items
-        const decrypted = await Promise.all(
-          data.items.map(async (item: any) => {
-            try {
-              const decryptedData = await decryptVaultItem(
-                item.encryptedData,
-                item.iv,
-                masterKey
-              );
-              return {
-                ...decryptedData,
-                id: item.id,
-                createdAt: item.createdAt,
-                updatedAt: item.updatedAt,
-              };
-            } catch (error) {
-              console.error('Failed to decrypt item:', error);
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load vault items');
+      }
+
+      const decrypted = await Promise.all(
+        (data.items ?? []).map(async (item) => {
+          try {
+            const decryptedData = await decryptVaultItem(
+              item.encryptedData,
+              item.iv,
+              masterKey
+            );
+
+            if (!decryptedData || typeof decryptedData !== 'object') {
               return null;
             }
-          })
-        );
-        setItems(decrypted.filter(item => item !== null));
+
+            const itemData = decryptedData as Partial<DecryptedVaultItem>;
+            return {
+              ...itemData,
+              id: item.id,
+              itemType: itemData.itemType ?? item.itemType,
+              title: getDisplayTitle(itemData),
+              createdAt: item.createdAt,
+              updatedAt: item.updatedAt,
+            } as DecryptedVaultItem;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      const loadedItems = decrypted.filter((item): item is DecryptedVaultItem => item !== null);
+      setItems(loadedItems);
+
+      if (loadedItems.length !== (data.items ?? []).length) {
+        showToast('Some vault items could not be decrypted', 'warning');
       }
-    } catch (error: any) {
-      showToast(error.message || 'Failed to load vault items', 'error');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load vault items';
+      showToast(message, 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [masterKey, setItems, showToast]);
+
+  useEffect(() => {
+    void loadVaultItems();
+  }, [loadVaultItems]);
+
 
   const handleDelete = async () => {
     if (!itemToDelete) return;
@@ -93,18 +113,21 @@ export default function VaultPage() {
       const { user } = useAuthStore.getState();
       if (!user) return;
 
-      const response = await fetch(`/api/vault/${itemToDelete}?userId=${user.id}`, {
+      const response = await fetch(`/api/vault/${itemToDelete}?userId=${encodeURIComponent(user.id)}`, {
         method: 'DELETE',
       });
+
+      const data = await response.json() as { error?: string };
 
       if (response.ok) {
         deleteItem(itemToDelete);
         showToast('Item deleted successfully', 'success');
       } else {
-        throw new Error('Failed to delete item');
+        throw new Error(data.error || 'Failed to delete item');
       }
-    } catch (error: any) {
-      showToast(error.message || 'Failed to delete item', 'error');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete item';
+      showToast(message, 'error');
     } finally {
       setDeleteModalOpen(false);
       setItemToDelete(null);
@@ -117,9 +140,7 @@ export default function VaultPage() {
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         return (
-          item.title?.toLowerCase().includes(query) ||
-          item.username?.toLowerCase().includes(query) ||
-          item.url?.toLowerCase().includes(query)
+          getSearchableVaultText(item).includes(query)
         );
       }
       return true;
@@ -128,6 +149,7 @@ export default function VaultPage() {
   const getIcon = (type: string) => {
     switch (type) {
       case 'password':
+      case 'login':
         return <KeyIcon className="w-5 h-5 text-primary" />;
       case 'note':
         return <DocumentTextIcon className="w-5 h-5 text-success" />;
@@ -151,7 +173,7 @@ export default function VaultPage() {
           </p>
         </div>
         <button
-          onClick={() => openModal('add')}
+          onClick={() => router.push('/vault/add')}
           className="btn-primary flex items-center gap-2"
         >
           <PlusIcon className="w-5 h-5" />
@@ -175,7 +197,7 @@ export default function VaultPage() {
           <FunnelIcon className="w-5 h-5 text-text-secondary" />
           <select
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value as any)}
+            onChange={(e) => setFilterType(e.target.value as 'all' | VaultItemType)}
             className="input w-48"
           >
             <option value="all">All Items</option>
@@ -203,7 +225,7 @@ export default function VaultPage() {
           </p>
           {!searchQuery && filterType === 'all' && (
             <button
-              onClick={() => openModal('add')}
+              onClick={() => router.push('/vault/add')}
               className="btn-primary inline-flex items-center gap-2"
             >
               <PlusIcon className="w-5 h-5" />
@@ -255,7 +277,11 @@ export default function VaultPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {item.password && <ClipboardButton text={item.password} />}
-                  <button className="p-2 text-text-secondary hover:text-primary hover:bg-surface rounded-lg transition-all">
+                  <button
+                    onClick={() => router.push(`/vault/${item.id}/edit`)}
+                    className="p-2 text-text-secondary hover:text-primary hover:bg-surface rounded-lg transition-all"
+                    aria-label={`Edit ${item.title}`}
+                  >
                     <PencilIcon className="w-4 h-4" />
                   </button>
                   <button

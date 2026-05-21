@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
 
 export default function Error({
   error,
@@ -37,19 +38,19 @@ export default function Error({
             Try Again
           </button>
           
-          <a
+          <Link
             href="/"
             className="btn-secondary w-full block"
           >
             Go Home
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/debug"
             className="text-primary hover:underline block"
           >
             Open Debug Panel
-          </a>
+          </Link>
         </div>
 
         {error.digest && (

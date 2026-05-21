@@ -7,8 +7,9 @@ import { SecureInput } from '@/components/SecureInput';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { validateEmail } from '@/lib/utils';
-import { deriveMasterKey, base64ToUint8Array } from '@/lib/crypto';
+import { deriveMasterKey, base64ToUint8Array, verifyMasterKey } from '@/lib/crypto';
 import { LockClosedIcon } from '@heroicons/react/24/outline';
+import { KeyVerifier, User } from '@/types';
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -16,14 +17,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { setUser, setMasterKey, setSalt } = useAuthStore();
+  const { setUser, setMasterKey, setSalt, setKeyVerifier } = useAuthStore();
   const { showToast } = useUIStore();
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validateEmail(email)) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!validateEmail(normalizedEmail)) {
       showToast('Please enter a valid email address', 'error');
       return;
     }
@@ -36,45 +38,46 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      console.log('[Login] Starting login for:', email);
-      
-      // Get user's salt from backend
-      console.log('[Login] Fetching salt from /api/auth/login');
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      }).catch((err) => {
-        console.error('[Login] Network error:', err);
+        body: JSON.stringify({ email: normalizedEmail }),
+      }).catch(() => {
         throw new Error('Network error: Could not reach server. Please check if the development server is running.');
       });
 
-      console.log('[Login] Response status:', response.status);
-      const data = await response.json();
-      console.log('[Login] Received data');
+      const data = await response.json() as {
+        error?: string;
+        user?: User;
+        salt?: string;
+        keyVerifier?: KeyVerifier | null;
+      };
 
       if (!response.ok) {
         throw new Error(data.error || 'Login failed');
       }
 
-      // Derive master key from password and salt
-      console.log('[Login] Deriving master key...');
+      if (!data.user || !data.salt || !data.keyVerifier) {
+        throw new Error('Account is missing password verification data');
+      }
+
       const saltArray = base64ToUint8Array(data.salt);
       const masterKey = await deriveMasterKey(password, saltArray);
-      console.log('[Login] Master key derived');
+      const verified = await verifyMasterKey(masterKey, data.keyVerifier);
 
-      // Store everything
-      console.log('[Login] Login successful, storing auth data');
+      if (!verified) {
+        throw new Error('Invalid master password');
+      }
+
       setUser(data.user);
       setMasterKey(masterKey);
       setSalt(data.salt);
+      setKeyVerifier(data.keyVerifier);
 
       showToast('Welcome back!', 'success');
-      console.log('[Login] Redirecting to vault');
       router.push('/vault');
-    } catch (error: any) {
-      console.error('[Login] Error during login:', error);
-      const errorMessage = error.message || 'Login failed. Please try again.';
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.';
       showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
@@ -145,7 +148,7 @@ export default function LoginPage() {
           {/* Register Link */}
           <div className="mt-6 text-center border-t border-border pt-4">
             <p className="text-sm text-text-secondary">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link href="/auth/register" className="text-primary hover:text-blue-400 hover:underline font-medium transition-colors">
                 Create one
               </Link>

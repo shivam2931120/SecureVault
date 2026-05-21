@@ -102,29 +102,34 @@ Visit: **http://localhost:3000**
 4. Run this schema:
 
 ```sql
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email VARCHAR(255) UNIQUE NOT NULL,
-  salt VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW()
+  email TEXT UNIQUE NOT NULL,
+  salt TEXT NOT NULL,
+  verifier_encrypted_data TEXT NOT NULL,
+  verifier_iv TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE vault_items (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  item_type VARCHAR(50) NOT NULL,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  item_type TEXT NOT NULL,
   encrypted_data TEXT NOT NULL,
-  iv VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  iv TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
-5. Copy your project URL and anon key
+5. Copy your project URL, anon key, and service role key
 6. Create `.env.local`:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
 7. Restart dev server

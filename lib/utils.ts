@@ -30,15 +30,19 @@ export function formatDate(date: string): string {
   }
 }
 
-export function copyToClipboard(text: string, duration: number = 15000): Promise<void> {
-  return new Promise((resolve) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setTimeout(() => {
-        navigator.clipboard.writeText('');
-      }, duration);
-      resolve();
-    });
-  });
+export async function copyToClipboard(text: string, duration: number = 15000): Promise<void> {
+  await navigator.clipboard.writeText(text);
+
+  window.setTimeout(async () => {
+    try {
+      const currentClipboard = await navigator.clipboard.readText();
+      if (currentClipboard === text) {
+        await navigator.clipboard.writeText('');
+      }
+    } catch {
+      // Some browsers deny clipboard reads; copied secrets should still not break the UI.
+    }
+  }, duration);
 }
 
 export function validateEmail(email: string): boolean {

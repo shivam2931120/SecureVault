@@ -1,13 +1,21 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { encryptData, decryptData, generateIV, arrayBufferToBase64, base64ToArrayBuffer, base64ToUint8Array } from '@/crypto';
+import { encryptData, decryptData, generateIV, arrayBufferToBase64, base64ToUint8Array } from '@/crypto';
 import { API_URL } from '@/utils/constants';
 import {
     VaultItemType,
     BaseVaultItem,
     DecryptedVaultItem,
-    Folder
+    Folder,
+    LoginData,
+    CardData,
+    NoteData,
+    IdentityData,
+    ApiKeyData,
+    WifiData
 } from '@/types/vault';
+
+type VaultItemData = LoginData | CardData | NoteData | IdentityData | ApiKeyData | WifiData;
 
 interface VaultState {
     items: DecryptedVaultItem[];
@@ -26,7 +34,7 @@ interface VaultState {
 
     getFilteredItems: () => DecryptedVaultItem[];
     fetchItems: (userId: string, masterKey: string) => Promise<void>;
-    addItem: (userId: string, itemType: VaultItemType, title: string, data: any, masterKey: string, folder?: string) => Promise<void>;
+    addItem: (userId: string, itemType: VaultItemType, title: string, data: VaultItemData, masterKey: string, folder?: string) => Promise<void>;
     deleteItem: (itemId: string, userId: string) => Promise<void>;
     sync: (userId: string, masterKey: string) => Promise<void>;
 
@@ -37,7 +45,7 @@ interface VaultState {
 
 const FOLDERS_KEY = 'secure_vault_folders';
 
-async function encryptVaultData(data: any, masterKey: string): Promise<{ encryptedData: string; iv: string }> {
+async function encryptVaultData(data: VaultItemData, masterKey: string): Promise<{ encryptedData: string; iv: string }> {
     const iv = generateIV();
     const encrypted = await encryptData(JSON.stringify(data), masterKey, iv);
     return {
@@ -46,10 +54,10 @@ async function encryptVaultData(data: any, masterKey: string): Promise<{ encrypt
     };
 }
 
-async function decryptVaultData(encryptedData: string, ivString: string, masterKey: string): Promise<any> {
+async function decryptVaultData(encryptedData: string, ivString: string, masterKey: string): Promise<VaultItemData> {
     const iv = base64ToUint8Array(ivString);
     const decrypted = await decryptData(encryptedData, masterKey, iv);
-    return JSON.parse(decrypted);
+    return JSON.parse(decrypted) as VaultItemData;
 }
 
 export const useVaultStore = create<VaultState>((set, get) => ({
@@ -208,7 +216,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
         const cached = await AsyncStorage.getItem(`vault_${userId}`);
         if (cached) {
-            const items = JSON.parse(cached).filter((i: any) => i.id !== itemId);
+            const items = (JSON.parse(cached) as BaseVaultItem[]).filter((item) => item.id !== itemId);
             await AsyncStorage.setItem(`vault_${userId}`, JSON.stringify(items));
         }
     },

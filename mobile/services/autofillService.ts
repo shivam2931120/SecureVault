@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decryptVaultItem } from '@/crypto';
+import { BaseVaultItem, LoginData } from '@/types/vault';
 
 export interface AutofillCredential {
     id: string;
@@ -76,7 +77,7 @@ class AutofillService {
 
     // Get credentials from vault for autofill
     async getCredentialsForUrl(
-        vaultItems: any[],
+        vaultItems: BaseVaultItem[],
         masterKey: string,
         targetUrl: string
     ): Promise<AutofillCredential[]> {
@@ -87,7 +88,7 @@ class AutofillService {
 
         for (const item of loginItems) {
             try {
-                const decrypted = await decryptVaultItem(item.encryptedData, item.iv, masterKey);
+                const decrypted = await decryptVaultItem(item.encryptedData, item.iv, masterKey) as Partial<LoginData>;
                 credentials.push({
                     id: item.id,
                     title: item.title,
