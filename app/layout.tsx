@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
 };
 
+import { Toast } from "@/components/Toast";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -21,6 +23,7 @@ export default function RootLayout({
         </head>
         <body>
           <div className="crt-overlay" />
+          <Toast />
           {children}
         </body>
       </html>

@@ -24,14 +24,14 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      user: null,
+      user: { id: 'local-vault', email: 'local@device', createdAt: new Date().toISOString() },
       masterKey: null,
       salt: null,
       keyVerifier: null,
-      isAuthenticated: false,
+      isAuthenticated: true,
       isLoading: false,
       isHydrated: false,
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
+      setUser: (user) => set({ user, isAuthenticated: true }),
       setMasterKey: (masterKey) => set({ masterKey }),
       setSalt: (salt) => set({ salt }),
       setKeyVerifier: (keyVerifier) => set({ keyVerifier }),
@@ -42,11 +42,10 @@ export const useAuthStore = create<AuthState>()(
       },
       logout: () => {
         set({
-          user: null,
           masterKey: null,
           salt: null,
           keyVerifier: null,
-          isAuthenticated: false
+          isAuthenticated: true
         });
       },
       // Re-derive masterKey from password after page reload
