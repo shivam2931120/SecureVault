@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Toast } from "@/components/Toast";
 
 export const metadata: Metadata = {
-  title: "SecureVault - Zero-Knowledge Password Vault",
-  description: "Secure your passwords, notes, and sensitive data with military-grade encryption. Zero-knowledge architecture ensures your secrets stay secret.",
+  title: "SecureVault",
+  description: "Secure password manager",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
@@ -14,10 +14,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">
-        {children}
-        <Toast />
-      </body>
-    </html>
+        <head>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=VT323&display=swap" rel="stylesheet" />
+        </head>
+        <body>
+          <div className="crt-overlay" />
+          {children}
+        </body>
+      </html>
   );
 }

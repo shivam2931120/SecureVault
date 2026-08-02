@@ -1,37 +1,37 @@
 'use client';
 
-import { assessPasswordStrength } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import React from 'react';
+import { assessPasswordStrength, cn } from '@/lib/utils';
 
 interface PasswordStrengthMeterProps {
-  password: string;
+  password?: string;
   className?: string;
 }
 
-export function PasswordStrengthMeter({
-  password,
-  className,
-}: PasswordStrengthMeterProps) {
+export function PasswordStrengthMeter({ password = '', className }: PasswordStrengthMeterProps) {
   const { score, feedback, color } = assessPasswordStrength(password);
-  const percentage = (score / 7) * 100;
+
+  const barLength = 20;
+  const filledLength = password ? Math.round((score / 7) * barLength) : 0;
+  const bar = '\u2588'.repeat(filledLength) + '\u2591'.repeat(barLength - filledLength);
 
   return (
-    <div className={cn('space-y-2', className)}>
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-text-secondary">Password Strength</span>
-        <span className={cn('text-sm font-medium', color)}>{feedback}</span>
+    <div className={cn('space-y-1 w-full font-mono', className)}>
+      <div className="flex justify-between items-center text-xs">
+        <span className="text-text-secondary">STR:</span>
+        <span className={cn('font-medium', color)}>{feedback}</span>
       </div>
-      <div className="w-full h-2 bg-surface rounded-full overflow-hidden">
-        <div
-          className={cn(
-            'h-full transition-all duration-300 rounded-full',
-            score <= 2 && 'bg-danger',
-            score > 2 && score <= 4 && 'bg-warning',
-            score > 4 && 'bg-success'
-          )}
-          style={{ width: `${percentage}%` }}
-        />
+      <div className="text-xs">
+        <span className="text-muted">[</span>
+        <span className={cn(
+          password.length === 0 ? 'text-muted' :
+          score <= 2 ? 'text-danger' :
+          score <= 4 ? 'text-warning' : 'text-success'
+        )}>{bar}</span>
+        <span className="text-muted">]</span>
       </div>
     </div>
   );
 }
+
+export default PasswordStrengthMeter;

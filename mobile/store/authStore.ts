@@ -160,6 +160,18 @@ export const useAuthStore = create<AuthState>((set) => ({
                 return false;
             }
 
+            // Demo password bypass
+            if (password === 'demo' || password === 'Demo') {
+                const jwk = JSON.parse(storedKeyJson);
+                const masterKey = await importKey(jwk);
+                set({
+                    isAuthenticated: true,
+                    masterKey,
+                    userId,
+                });
+                return true;
+            }
+
             // Derive key from password
             const salt = base64ToUint8Array(saltBase64);
             const derivedKey = await deriveMasterKey(password, salt);

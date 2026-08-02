@@ -1,20 +1,35 @@
 'use client';
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '@/stores/uiStore';
-import {
-  CheckCircleIcon,
-  XCircleIcon,
-  ExclamationTriangleIcon,
-  InformationCircleIcon,
-} from '@heroicons/react/24/outline';
+
+const prefixes = {
+  success: '[OK]',
+  error: '[ERR]',
+  warning: '[WARN]',
+  info: '[SYS]',
+};
+
+const borderColors = {
+  success: 'border-success',
+  error: 'border-danger',
+  warning: 'border-warning',
+  info: 'border-primary',
+};
+
+const textColors = {
+  success: 'text-success',
+  error: 'text-danger',
+  warning: 'text-warning',
+  info: 'text-primary',
+};
 
 export function Toast() {
   const { toast, hideToast } = useUIStore();
 
   useEffect(() => {
-    if (toast?.visible) {
+    if (toast) {
       const timer = setTimeout(() => {
         hideToast();
       }, 5000);
@@ -22,44 +37,35 @@ export function Toast() {
     }
   }, [toast, hideToast]);
 
-  if (!toast?.visible) return null;
-
-  const icons = {
-    success: <CheckCircleIcon className="w-5 h-5 text-success" />,
-    error: <XCircleIcon className="w-5 h-5 text-danger" />,
-    warning: <ExclamationTriangleIcon className="w-5 h-5 text-warning" />,
-    info: <InformationCircleIcon className="w-5 h-5 text-primary" />,
-  };
-
-  const colors = {
-    success: 'border-success/20 bg-success/10',
-    error: 'border-danger/20 bg-danger/10',
-    warning: 'border-warning/20 bg-warning/10',
-    info: 'border-primary/20 bg-primary/10',
-  };
-
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        className="fixed top-4 right-4 z-[9999]"
-      >
-        <div
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${colors[toast.type]} backdrop-blur-sm min-w-[300px] max-w-md shadow-lg`}
-        >
-          {icons[toast.type]}
-          <p className="text-sm text-text-primary flex-1">{toast.message}</p>
-          <button
-            onClick={hideToast}
-            className="text-text-secondary hover:text-text-primary transition-colors"
-            aria-label="Close"
+    <div className="fixed top-6 right-6 z-[100] flex flex-col gap-2">
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ x: '100%', opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '100%', opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className={`flex items-center gap-3 min-w-[320px] max-w-md px-4 py-3 border bg-background font-mono ${borderColors[toast.type]}`}
+            role="alert"
+            style={{ boxShadow: '0 0 20px rgba(51, 255, 0, 0.1)' }}
           >
-            <XCircleIcon className="w-5 h-5" />
-          </button>
-        </div>
-      </motion.div>
-    </AnimatePresence>
+            <span className={`text-xs font-bold ${textColors[toast.type]}`}>{prefixes[toast.type]}</span>
+            <p className="flex-1 text-xs text-primary">
+              {toast.message}
+            </p>
+            <button
+              onClick={hideToast}
+              className="text-muted hover:text-primary text-xs transition-colors flex-shrink-0"
+              aria-label="Close"
+            >
+              [×]
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
+
+export default Toast;

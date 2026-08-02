@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 
 interface SecureInputProps {
@@ -13,6 +12,9 @@ interface SecureInputProps {
   className?: string;
   required?: boolean;
   autoComplete?: string;
+  error?: string;
+  trailingAction?: React.ReactNode;
+  monospace?: boolean;
 }
 
 export function SecureInput({
@@ -24,30 +26,18 @@ export function SecureInput({
   className,
   required,
   autoComplete,
+  error,
+  trailingAction,
+  monospace = true,
 }: SecureInputProps) {
   const [visible, setVisible] = useState(false);
-  const [pressTimer, setPressTimer] = useState<NodeJS.Timeout | null>(null);
-
-  const handleMouseDown = () => {
-    const timer = setTimeout(() => {
-      setVisible(true);
-    }, 500);
-    setPressTimer(timer);
-  };
-
-  const handleMouseUp = () => {
-    if (pressTimer) {
-      clearTimeout(pressTimer);
-    }
-    setVisible(false);
-  };
 
   return (
-    <div className={cn('w-full', className)}>
+    <div className={cn('w-full space-y-1.5 font-mono', className)}>
       {label && (
-        <label className="block text-sm font-medium text-text-primary mb-2">
-          {label}
-          {required && <span className="text-danger ml-1">*</span>}
+        <label className="block text-xs text-text-secondary uppercase tracking-wider">
+          <span className="text-muted">// </span>{label}
+          {required && <span className="ml-1 text-danger">*</span>}
         </label>
       )}
       <div className="relative">
@@ -58,27 +48,30 @@ export function SecureInput({
           placeholder={placeholder}
           required={required}
           autoComplete={autoComplete}
-          className="input pr-12 font-mono"
+          className={cn(
+            'form-input pr-20',
+            monospace && 'font-mono',
+            trailingAction && 'pr-36',
+            error && 'border-danger',
+          )}
         />
-        {type === 'password' && (
-          <button
-            type="button"
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onTouchStart={handleMouseDown}
-            onTouchEnd={handleMouseUp}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
-            aria-label={visible ? 'Hide password' : 'Show password'}
-          >
-            {visible ? (
-              <EyeSlashIcon className="w-5 h-5" />
-            ) : (
-              <EyeIcon className="w-5 h-5" />
-            )}
-          </button>
-        )}
+        <div className="absolute inset-y-0 right-2 flex items-center gap-1">
+          {trailingAction}
+          {type === 'password' && (
+            <button
+              type="button"
+              onClick={() => setVisible((current) => !current)}
+              className="text-muted hover:text-primary text-xs border border-transparent hover:border-primary px-1.5 py-0.5 transition-all"
+              aria-label={visible ? 'Hide password' : 'Show password'}
+            >
+              {visible ? '[HIDE]' : '[SHOW]'}
+            </button>
+          )}
+        </div>
       </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
     </div>
   );
 }
+
+export default SecureInput;

@@ -7,13 +7,15 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirect to login page immediately
-    router.push('/auth/login');
+    router.push('/vault');
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="text-text-secondary">Redirecting to login...</div>
+    <div className="min-h-screen bg-background flex items-center justify-center font-mono">
+      <div className="text-text-secondary text-xs">
+        <span className="text-primary">$</span> redirecting to /vault...
+        <span className="cursor-blink"></span>
+      </div>
     </div>
   );
 }

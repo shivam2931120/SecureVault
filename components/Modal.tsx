@@ -1,73 +1,99 @@
 'use client';
 
-import { useEffect, useId } from 'react';
-import { motion } from 'framer-motion';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import React, { useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  maxWidth?: string;
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }
 
-export function Modal({
-  isOpen,
-  onClose,
-  title,
-  children,
-  maxWidth = 'max-w-md',
-}: ModalProps) {
-  const titleId = useId();
+const maxWidthClasses = {
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-lg',
+  xl: 'max-w-xl',
+  '2xl': 'max-w-2xl',
+};
+
+export function Modal({ isOpen, onClose, title, children, maxWidth = 'lg' }: ModalProps) {
+  const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
     };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'unset';
+    };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    if (e.target === overlayRef.current) {
+      onClose();
+    }
+  };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        className={`relative w-full ${maxWidth} bg-card border border-border rounded-lg shadow-2xl`}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-      >
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 id={titleId} className="text-xl font-semibold text-text-primary">{title}</h2>
-          <button
-            onClick={onClose}
-            className="text-text-secondary hover:text-text-primary transition-colors"
-            aria-label="Close modal"
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/85"
+            ref={overlayRef}
+            onClick={handleOverlayClick}
+            aria-hidden="true"
+          />
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ type: 'spring', duration: 0.3 }}
+            className={cn(
+              'relative flex max-h-[90vh] w-full flex-col overflow-hidden border border-primary bg-background font-mono',
+              maxWidthClasses[maxWidth]
+            )}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-title"
+            style={{ boxShadow: '0 0 30px rgba(51, 255, 0, 0.1)' }}
           >
-            <XMarkIcon className="w-6 h-6" />
-          </button>
+            <div className="flex items-center justify-between border-b border-primary px-4 py-2 bg-primary/5">
+              <div className="flex items-center gap-2">
+                <span className="text-primary text-xs">┌──</span>
+                <h2 id="modal-title" className="text-xs font-bold text-primary uppercase tracking-wider text-glow">
+                  {title}
+                </h2>
+                <span className="text-primary text-xs">──┐</span>
+              </div>
+              <button
+                onClick={onClose}
+                className="text-primary hover:text-danger text-sm transition-colors"
+                aria-label="Close modal"
+              >
+                [×]
+              </button>
+            </div>
+            <div className="overflow-y-auto p-6">
+              {children}
+            </div>
+          </motion.div>
         </div>
-        <div className="p-6">{children}</div>
-      </motion.div>
-    </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
+
+export default Modal;

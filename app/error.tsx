@@ -1,64 +1,39 @@
-'use client';
+'use client'
 
-import { useEffect } from 'react';
-import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
-import Link from 'next/link';
+import { useEffect } from 'react'
 
 export default function Error({
   error,
   reset,
 }: {
-  error: Error & { digest?: string };
-  reset: () => void;
+  error: Error & { digest?: string }
+  reset: () => void
 }) {
   useEffect(() => {
-    console.error('[Error Boundary] Caught error:', error);
-  }, [error]);
+    console.error('Application error:', error)
+  }, [error])
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="card max-w-lg text-center">
-        <div className="w-12 h-12 bg-danger/10 rounded-full flex items-center justify-center mx-auto mb-3">
-          <ExclamationTriangleIcon className="w-8 h-8 text-danger" />
+    <div className="min-h-[100dvh] bg-background flex items-center justify-center p-4">
+      <div className="border border-danger p-0 max-w-md w-full">
+        <div className="bg-danger/10 border-b border-danger px-4 py-2 flex items-center gap-2">
+          <span className="text-danger font-mono text-xs uppercase tracking-wider">[ SYSTEM ERROR ]</span>
         </div>
-        
-        <h1 className="text-2xl font-bold text-text-primary mb-2">
-          Something Went Wrong
-        </h1>
-        
-        <p className="text-text-secondary mb-6">
-          {error.message || 'An unexpected error occurred'}
-        </p>
-
-        <div className="space-y-3">
+        <div className="p-6">
+          <pre className="text-danger font-mono text-sm mb-4 whitespace-pre-wrap">
+{`ERR: ${error.message || 'An unexpected error occurred'}
+CODE: ${error.digest || 'UNKNOWN'}
+STATUS: FATAL`}
+          </pre>
+          <div className="ascii-divider mb-4 text-danger/50">{'─'.repeat(40)}</div>
           <button
             onClick={reset}
-            className="btn-primary w-full"
+            className="w-full p-3 border border-danger text-danger font-mono text-sm uppercase tracking-wider hover:bg-danger hover:text-background transition-colors"
           >
-            Try Again
+            [ RETRY OPERATION ]
           </button>
-          
-          <Link
-            href="/"
-            className="btn-secondary w-full block"
-          >
-            Go Home
-          </Link>
-
-          <Link
-            href="/debug"
-            className="text-primary hover:underline block"
-          >
-            Open Debug Panel
-          </Link>
         </div>
-
-        {error.digest && (
-          <p className="text-xs text-text-secondary mt-6">
-            Error ID: {error.digest}
-          </p>
-        )}
       </div>
     </div>
-  );
+  )
 }

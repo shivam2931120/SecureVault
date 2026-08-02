@@ -38,6 +38,14 @@ export interface DecryptedVaultItem {
   cardHolder?: string;
   apiKey?: string;
   apiService?: string;
+  fullName?: string;
+  emailAddress?: string;
+  phone?: string;
+  address?: string;
+  company?: string;
+  ssid?: string;
+  networkPassword?: string;
+  routerIp?: string;
   tags?: string[];
   createdAt: string;
   updatedAt: string;

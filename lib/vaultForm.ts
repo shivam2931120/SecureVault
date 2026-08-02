@@ -1,7 +1,7 @@
 import { DecryptedVaultItem, VaultItemType } from '@/types';
 import { parseTags } from '@/lib/vault';
 
-export type WebVaultItemType = Extract<VaultItemType, 'password' | 'note' | 'card' | 'apikey'>;
+export type WebVaultItemType = Extract<VaultItemType, 'password' | 'note' | 'card' | 'apikey' | 'identity' | 'wifi'>;
 
 export interface VaultItemFormData {
   title: string;
@@ -15,6 +15,14 @@ export interface VaultItemFormData {
   cardHolder: string;
   apiKey: string;
   apiService: string;
+  fullName: string;
+  emailAddress: string;
+  phone: string;
+  address: string;
+  company: string;
+  ssid: string;
+  networkPassword: string;
+  routerIp: string;
   tags: string;
 }
 
@@ -30,6 +38,14 @@ export const emptyVaultItemFormData: VaultItemFormData = {
   cardHolder: '',
   apiKey: '',
   apiService: '',
+  fullName: '',
+  emailAddress: '',
+  phone: '',
+  address: '',
+  company: '',
+  ssid: '',
+  networkPassword: '',
+  routerIp: '',
   tags: '',
 };
 
@@ -67,6 +83,10 @@ export function validateVaultItemForm(
     return 'Please enter an API key';
   }
 
+  if (selectedType === 'wifi' && !formData.networkPassword) {
+    return 'Please enter a network password';
+  }
+
   return null;
 }
 
@@ -99,6 +119,18 @@ export function buildVaultItemData(
       itemData.apiKey = formData.apiKey;
       itemData.apiService = formData.apiService.trim();
       break;
+    case 'identity':
+      itemData.fullName = formData.fullName.trim();
+      itemData.emailAddress = formData.emailAddress.trim();
+      itemData.phone = formData.phone.trim();
+      itemData.address = formData.address.trim();
+      itemData.company = formData.company.trim();
+      break;
+    case 'wifi':
+      itemData.ssid = formData.ssid.trim();
+      itemData.networkPassword = formData.networkPassword;
+      itemData.routerIp = formData.routerIp.trim();
+      break;
   }
 
   return itemData;
@@ -117,6 +149,14 @@ export function formDataFromVaultItem(item: DecryptedVaultItem): VaultItemFormDa
     cardHolder: item.cardHolder ?? '',
     apiKey: item.apiKey ?? '',
     apiService: item.apiService ?? '',
+    fullName: item.fullName ?? '',
+    emailAddress: item.emailAddress ?? '',
+    phone: item.phone ?? '',
+    address: item.address ?? '',
+    company: item.company ?? '',
+    ssid: item.ssid ?? '',
+    networkPassword: item.networkPassword ?? '',
+    routerIp: item.routerIp ?? '',
     tags: item.tags?.join(', ') ?? '',
   };
 }

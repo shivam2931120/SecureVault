@@ -1,22 +1,11 @@
 'use client';
 
-import { ChangeEvent, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
-import { useAuthStore } from '@/stores/authStore';
-import { useSettingsStore } from '@/stores/settingsStore';
-import { useUIStore } from '@/stores/uiStore';
+import { ChangeEvent, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  ArrowDownTrayIcon,
-  ArrowUpTrayIcon,
-  ClockIcon,
-  KeyIcon,
-  ShieldCheckIcon,
-  TrashIcon,
-} from '@heroicons/react/24/outline';
 import { Modal } from '@/components/Modal';
-import { SecureInput } from '@/components/SecureInput';
+import { PageHeader } from '@/components/PageHeader';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
+import { SecureInput } from '@/components/SecureInput';
 import {
   base64ToUint8Array,
   createKeyVerifier,
@@ -28,22 +17,30 @@ import {
   verifyMasterKey,
 } from '@/lib/crypto';
 import { isBase64, isVaultItemType, VaultBackup } from '@/lib/vault';
+import { useAuthStore } from '@/stores/authStore';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { useUIStore } from '@/stores/uiStore';
 import { VaultItem } from '@/types';
 
 const timeoutOptions = [
-  { value: 1, label: '1 minute' },
-  { value: 5, label: '5 minutes' },
-  { value: 15, label: '15 minutes' },
-  { value: 30, label: '30 minutes' },
-  { value: 60, label: '1 hour' },
+  { value: 1, label: '1 min' },
+  { value: 5, label: '5 min' },
+  { value: 15, label: '15 min' },
+  { value: 30, label: '30 min' },
+  { value: 60, label: '1 hr' },
   { value: 0, label: 'Never' },
 ];
 
-function isVaultBackup(value: unknown): value is VaultBackup {
-  if (!value || typeof value !== 'object') {
-    return false;
-  }
+const tabs = [
+  { id: 'security', label: 'SEC' },
+  { id: 'backup', label: 'BAK' },
+  { id: 'about', label: 'INF' },
+] as const;
 
+type SettingsTab = typeof tabs[number]['id'];
+
+function isVaultBackup(value: unknown): value is VaultBackup {
+  if (!value || typeof value !== 'object') return false;
   const backup = value as Partial<VaultBackup>;
   return backup.app === 'SecureVault'
     && backup.version === 1
@@ -63,6 +60,26 @@ function isVaultBackup(value: unknown): value is VaultBackup {
     ));
 }
 
+function SettingRow({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 border border-border bg-background p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <div className="text-xs font-bold text-primary uppercase tracking-wider">{title}</div>
+        <div className="mt-1 text-[10px] text-text-secondary">// {description}</div>
+      </div>
+      {action && <div className="shrink-0">{action}</div>}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const {
     user,
@@ -79,6 +96,7 @@ export default function SettingsPage() {
   const router = useRouter();
   const importInputRef = useRef<HTMLInputElement>(null);
 
+  const [activeTab, setActiveTab] = useState<SettingsTab>('security');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
@@ -87,18 +105,16 @@ export default function SettingsPage() {
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
 
-  const fetchEncryptedItems = async (): Promise<VaultItem[]> => {
-    if (!user) {
-      throw new Error('You must be signed in');
-    }
+  const itemSummary = useMemo(() => ({
+    email: user?.email || 'Unknown user',
+    createdAt: user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A',
+  }), [user?.createdAt, user?.email]);
 
+  const fetchEncryptedItems = async (): Promise<VaultItem[]> => {
+    if (!user) throw new Error('You must be signed in');
     const response = await fetch(`/api/vault?userId=${encodeURIComponent(user.id)}`);
     const data = await response.json() as { items?: VaultItem[]; error?: string };
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to fetch vault items');
-    }
-
+    if (!response.ok) throw new Error(data.error || 'Failed to fetch vault items');
     return data.items ?? [];
   };
 
@@ -110,10 +126,7 @@ export default function SettingsPage() {
 
   const handleExportVault = async () => {
     try {
-      if (!user) {
-        throw new Error('You must be signed in');
-      }
-
+      if (!user) throw new Error('You must be signed in');
       const items = await fetchEncryptedItems();
       const backup: VaultBackup = {
         app: 'SecureVault',
@@ -131,7 +144,6 @@ export default function SettingsPage() {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-
       showToast(`Exported ${items.length} encrypted item${items.length === 1 ? '' : 's'}`, 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to export vault';
@@ -141,23 +153,14 @@ export default function SettingsPage() {
     }
   };
 
-  const handleImportVault = () => {
-    importInputRef.current?.click();
-  };
-
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-
-    if (!file || !user) {
-      return;
-    }
+    if (!file || !user) return;
 
     try {
       const parsedBackup = JSON.parse(await file.text()) as unknown;
-      if (!isVaultBackup(parsedBackup)) {
-        throw new Error('Invalid SecureVault backup file');
-      }
+      if (!isVaultBackup(parsedBackup)) throw new Error('Invalid SecureVault backup file');
 
       let importedCount = 0;
       for (const item of parsedBackup.items) {
@@ -172,11 +175,7 @@ export default function SettingsPage() {
           }),
         });
         const data = await response.json() as { error?: string };
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to import vault item');
-        }
-
+        if (!response.ok) throw new Error(data.error || 'Failed to import vault item');
         importedCount += 1;
       }
 
@@ -189,19 +188,12 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!user) {
-      return;
-    }
+    if (!user) return;
 
     try {
-      const response = await fetch(`/api/auth/account?userId=${encodeURIComponent(user.id)}`, {
-        method: 'DELETE',
-      });
+      const response = await fetch(`/api/auth/account?userId=${encodeURIComponent(user.id)}`, { method: 'DELETE' });
       const data = await response.json() as { error?: string };
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete account');
-      }
+      if (!response.ok) throw new Error(data.error || 'Failed to delete account');
 
       logout();
       showToast('Account deleted', 'success');
@@ -219,12 +211,10 @@ export default function SettingsPage() {
       showToast('Session expired. Please unlock your vault again.', 'error');
       return;
     }
-
     if (newPassword.length < 8) {
       showToast('New password must be at least 8 characters', 'error');
       return;
     }
-
     if (newPassword !== confirmNewPassword) {
       showToast('New passwords do not match', 'error');
       return;
@@ -235,10 +225,7 @@ export default function SettingsPage() {
     try {
       const currentKey = await deriveMasterKey(currentPassword, base64ToUint8Array(salt));
       const verified = await verifyMasterKey(currentKey, keyVerifier);
-
-      if (!verified) {
-        throw new Error('Current master password is incorrect');
-      }
+      if (!verified) throw new Error('Current master password is incorrect');
 
       const encryptedItems = await fetchEncryptedItems();
       const decryptedItems = await Promise.all(
@@ -247,8 +234,9 @@ export default function SettingsPage() {
           data: await decryptVaultItem(item.encryptedData, item.iv, masterKey),
         }))
       );
+
       const newSaltArray = generateSalt();
-      const newSalt = uint8ArrayToBase64(newSaltArray);
+      const nextSalt = uint8ArrayToBase64(newSaltArray);
       const newMasterKey = await deriveMasterKey(newPassword, newSaltArray);
       const newKeyVerifier = await createKeyVerifier(newMasterKey);
       const reencryptedItems = await Promise.all(
@@ -257,6 +245,7 @@ export default function SettingsPage() {
           payload: await encryptVaultItem(data, newMasterKey),
         }))
       );
+
       const updatedItems: VaultItem[] = [];
 
       try {
@@ -271,11 +260,7 @@ export default function SettingsPage() {
             }),
           });
           const data = await response.json() as { error?: string };
-
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to re-encrypt vault item');
-          }
-
+          if (!response.ok) throw new Error(data.error || 'Failed to re-encrypt vault item');
           updatedItems.push(item);
         }
       } catch (error) {
@@ -296,19 +281,16 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.id,
-          salt: newSalt,
+          salt: nextSalt,
           verifierEncryptedData: newKeyVerifier.encryptedData,
           verifierIv: newKeyVerifier.iv,
         }),
       });
       const accountData = await accountResponse.json() as { error?: string };
-
-      if (!accountResponse.ok) {
-        throw new Error(accountData.error || 'Failed to update account');
-      }
+      if (!accountResponse.ok) throw new Error(accountData.error || 'Failed to update account');
 
       setMasterKey(newMasterKey);
-      setSalt(newSalt);
+      setSalt(nextSalt);
       setKeyVerifier(newKeyVerifier);
       setCurrentPassword('');
       setNewPassword('');
@@ -324,191 +306,162 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-text-primary">Settings</h1>
-        <p className="text-sm text-text-secondary mt-1">Manage your account and security preferences</p>
+    <div className="space-y-8 font-mono">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-primary text-sm">$</span>
+            <h1 className="text-3xl font-bold text-primary uppercase tracking-wider text-glow">CFG_SYS</h1>
+          </div>
+          <p className="mt-1 text-xs text-text-secondary pl-5">
+            <span className="text-muted">// </span>configure vault parameters
+          </p>
+          <div className="text-muted text-xs mt-2 pl-5">{'─'.repeat(40)}</div>
+        </div>
       </div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card mb-6">
-        <h2 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
-          <ShieldCheckIcon className="w-5 h-5" />
-          Account
-        </h2>
+      <div className="grid gap-6 xl:grid-cols-[200px_minmax(0,1fr)]">
+        <aside className="border border-border p-3 h-fit">
+          <nav className="space-y-1">
+            {tabs.map((tab) => {
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  type="button"
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors ${
+                    active ? 'bg-primary/10 text-primary border-l-2 border-primary text-glow' : 'text-text-secondary border-l-2 border-transparent hover:text-primary hover:bg-primary/5'
+                  }`}
+                >
+                  <span className="text-muted">{'>'}</span> {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-between py-3 border-b border-border">
-            <div>
-              <p className="font-medium text-text-primary">Email</p>
-              <p className="text-sm text-text-secondary">{user?.email || 'Not logged in'}</p>
+        <section className="space-y-4">
+
+
+          {activeTab === 'security' && (
+            <div className="border border-border p-5">
+              <div className="flex items-center gap-2 mb-6 border-b border-border pb-2">
+                <span className="text-primary text-xs">┌──</span>
+                <h2 className="text-xs font-bold text-primary uppercase tracking-wider text-glow">SECURITY</h2>
+                <span className="text-primary text-xs">──┐</span>
+              </div>
+              <div className="space-y-4">
+                <SettingRow
+                  title="MASTER_KEY"
+                  description="Re-encrypt entire vault with new key"
+                  action={<button onClick={() => setChangePasswordModalOpen(true)} className="btn-secondary px-3 py-1 text-[10px]">[ UPDATE ]</button>}
+                />
+                <SettingRow
+                  title="SESSION"
+                  description="Clear memory and disconnect"
+                  action={<button onClick={handleLogout} className="btn-secondary text-danger border-danger px-3 py-1 text-[10px] hover:bg-danger hover:text-background">[ KILL ]</button>}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="flex items-center justify-between py-3 border-b border-border">
-            <div>
-              <p className="font-medium text-text-primary">Account Created</p>
-              <p className="text-sm text-text-secondary">
-                {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-              </p>
+
+
+          {activeTab === 'backup' && (
+            <div className="border border-border p-5">
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={handleImportFile}
+                className="hidden"
+              />
+              <div className="flex items-center gap-2 mb-6 border-b border-border pb-2">
+                <span className="text-primary text-xs">┌──</span>
+                <h2 className="text-xs font-bold text-primary uppercase tracking-wider text-glow">BACKUP_SYS</h2>
+                <span className="text-primary text-xs">──┐</span>
+              </div>
+              <div className="space-y-4">
+                <SettingRow
+                  title="EXPORT"
+                  description="Dump encrypted records to local disk"
+                  action={
+                    <button onClick={() => setExportModalOpen(true)} className="btn-secondary px-3 py-1 text-[10px]">
+                      [ EXPORT ]
+                    </button>
+                  }
+                />
+                <SettingRow
+                  title="IMPORT"
+                  description="Load records from local file"
+                  action={
+                    <button onClick={() => importInputRef.current?.click()} className="btn-secondary px-3 py-1 text-[10px]">
+                      [ IMPORT ]
+                    </button>
+                  }
+                />
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="flex items-center justify-between py-3">
-            <div>
-              <p className="font-medium text-text-primary">Change Master Password</p>
-              <p className="text-sm text-text-secondary">Re-encrypt every vault item with a new key</p>
+          {activeTab === 'about' && (
+            <div className="border border-border p-5">
+              <div className="flex items-center gap-2 mb-6 border-b border-border pb-2">
+                <span className="text-primary text-xs">┌──</span>
+                <h2 className="text-xs font-bold text-primary uppercase tracking-wider text-glow">SYSTEM_INFO</h2>
+                <span className="text-primary text-xs">──┐</span>
+              </div>
+              <div className="space-y-4">
+                <SettingRow title="VERSION" description={`${process.env.NEXT_PUBLIC_APP_VERSION || 'v2.0'}`} />
+                <SettingRow
+                  title="DANGER_ZONE"
+                  description="Permanent destructive wipe"
+                  action={
+                    <button onClick={() => setDeleteModalOpen(true)} className="border border-danger text-danger px-3 py-1 text-[10px] uppercase hover:bg-danger hover:text-background transition-colors">
+                      [ WIPE_ALL ]
+                    </button>
+                  }
+                />
+              </div>
             </div>
-            <button onClick={() => setChangePasswordModalOpen(true)} className="btn-secondary text-sm">
-              <KeyIcon className="w-4 h-4 mr-2 inline" />
-              Change
-            </button>
-          </div>
-        </div>
-      </motion.div>
+          )}
+        </section>
+      </div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="card mb-6">
-        <h2 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
-          <ClockIcon className="w-5 h-5" />
-          Security
-        </h2>
-
-        <div className="flex items-center justify-between py-3">
-          <div>
-            <p className="font-medium text-text-primary">Auto-Lock Timeout</p>
-            <p className="text-sm text-text-secondary">Lock vault after inactivity</p>
-          </div>
-          <select
-            value={autoLockTimeout}
-            onChange={(e) => setAutoLockTimeout(Number(e.target.value))}
-            className="input w-40"
-          >
-            {timeoutOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
-      </motion.div>
-
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card mb-6">
-        <h2 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
-          <ArrowDownTrayIcon className="w-5 h-5" />
-          Data Management
-        </h2>
-
-        <input
-          ref={importInputRef}
-          type="file"
-          accept="application/json,.json"
-          onChange={handleImportFile}
-          className="hidden"
-        />
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between py-3 border-b border-border">
-            <div>
-              <p className="font-medium text-text-primary">Export Vault</p>
-              <p className="text-sm text-text-secondary">Download an encrypted backup</p>
-            </div>
-            <button onClick={() => setExportModalOpen(true)} className="btn-secondary text-sm">
-              <ArrowDownTrayIcon className="w-4 h-4 mr-2 inline" />
-              Export
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between py-3">
-            <div>
-              <p className="font-medium text-text-primary">Import Vault</p>
-              <p className="text-sm text-text-secondary">Restore an encrypted SecureVault backup</p>
-            </div>
-            <button onClick={handleImportVault} className="btn-secondary text-sm">
-              <ArrowUpTrayIcon className="w-4 h-4 mr-2 inline" />
-              Import
-            </button>
-          </div>
-        </div>
-      </motion.div>
-
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="card border-danger/20">
-        <h2 className="text-lg font-semibold text-danger mb-4 flex items-center gap-2">
-          <TrashIcon className="w-5 h-5" />
-          Danger Zone
-        </h2>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between py-3 border-b border-border">
-            <div>
-              <p className="font-medium text-text-primary">Sign Out</p>
-              <p className="text-sm text-text-secondary">Log out of your account</p>
-            </div>
-            <button onClick={handleLogout} className="btn-secondary text-sm">Sign Out</button>
-          </div>
-
-          <div className="flex items-center justify-between py-3">
-            <div>
-              <p className="font-medium text-danger">Delete Account</p>
-              <p className="text-sm text-text-secondary">Permanently delete your account and data</p>
-            </div>
-            <button onClick={() => setDeleteModalOpen(true)} className="btn-danger text-sm">Delete</button>
-          </div>
-        </div>
-      </motion.div>
-
-      <Modal isOpen={exportModalOpen} onClose={() => setExportModalOpen(false)} title="Export Vault">
-        <p className="text-text-secondary mb-4">
-          This exports encrypted vault records only. The backup can be decrypted only with the master password that protected the items when exported.
+      <Modal isOpen={exportModalOpen} onClose={() => setExportModalOpen(false)} title="EXPORT_VAULT">
+        <p className="text-xs text-text-secondary font-mono">
+          <span className="text-warning">[WARN]</span> Backups contain encrypted payloads. Master key context is still required to restore.
         </p>
-        <div className="flex gap-3 justify-end">
-          <button onClick={() => setExportModalOpen(false)} className="btn-secondary">Cancel</button>
-          <button onClick={handleExportVault} className="btn-primary">Export</button>
+        <div className="mt-6 flex justify-end gap-3">
+          <button onClick={() => setExportModalOpen(false)} className="btn-secondary">[ CANCEL ]</button>
+          <button onClick={handleExportVault} className="btn-primary">[ PROCEED ]</button>
         </div>
       </Modal>
 
-      <Modal isOpen={changePasswordModalOpen} onClose={() => setChangePasswordModalOpen(false)} title="Change Master Password">
+      <Modal isOpen={changePasswordModalOpen} onClose={() => setChangePasswordModalOpen(false)} title="REKEY_VAULT">
         <div className="space-y-4">
-          <SecureInput
-            value={currentPassword}
-            onChange={setCurrentPassword}
-            label="Current Master Password"
-            placeholder="Enter current password"
-            required
-            autoComplete="current-password"
-          />
-          <SecureInput
-            value={newPassword}
-            onChange={setNewPassword}
-            label="New Master Password"
-            placeholder="Enter new password"
-            required
-            autoComplete="new-password"
-          />
+          <SecureInput value={currentPassword} onChange={setCurrentPassword} label="OLD_KEY" placeholder="Current master password" autoComplete="current-password" />
+          <SecureInput value={newPassword} onChange={setNewPassword} label="NEW_KEY" placeholder="New master password" autoComplete="new-password" />
           <PasswordStrengthMeter password={newPassword} />
-          <SecureInput
-            value={confirmNewPassword}
-            onChange={setConfirmNewPassword}
-            label="Confirm New Password"
-            placeholder="Re-enter new password"
-            required
-            autoComplete="new-password"
-          />
-          <div className="flex gap-3 justify-end pt-2">
-            <button onClick={() => setChangePasswordModalOpen(false)} className="btn-secondary">Cancel</button>
+          <SecureInput value={confirmNewPassword} onChange={setConfirmNewPassword} label="VERIFY_KEY" placeholder="Repeat new password" autoComplete="new-password" />
+          <div className="flex justify-end gap-3 pt-4">
+            <button onClick={() => setChangePasswordModalOpen(false)} className="btn-secondary">[ CANCEL ]</button>
             <button onClick={handleChangeMasterPassword} disabled={changingPassword} className="btn-primary">
-              {changingPassword ? 'Changing...' : 'Change Password'}
+              {changingPassword ? '[ PROCESSING... ]' : '[ REKEY ]'}
             </button>
           </div>
         </div>
       </Modal>
 
-      <Modal isOpen={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="Delete Account">
-        <div className="bg-danger/10 border border-danger/20 rounded-lg p-4 mb-4">
-          <p className="text-danger font-medium">Warning: This action cannot be undone.</p>
-          <p className="text-sm text-text-secondary mt-1">
-            All your vault items, settings, and account data will be permanently deleted.
-          </p>
+      <Modal isOpen={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="SYS_WIPE">
+        <div className="border border-danger bg-danger/10 p-4">
+          <div className="text-xs font-bold text-danger uppercase tracking-widest">[CRITICAL WARNING]</div>
+          <div className="mt-2 text-xs text-danger/90">Execution will permanently erase all data, keys, and metadata. Recovery is impossible.</div>
         </div>
-        <div className="flex gap-3 justify-end">
-          <button onClick={() => setDeleteModalOpen(false)} className="btn-secondary">Cancel</button>
-          <button onClick={handleDeleteAccount} className="btn-danger">Delete My Account</button>
+        <div className="mt-6 flex justify-end gap-3">
+          <button onClick={() => setDeleteModalOpen(false)} className="btn-secondary">[ ABORT ]</button>
+          <button onClick={handleDeleteAccount} className="border border-danger text-danger px-4 py-2 text-xs font-mono uppercase hover:bg-danger hover:text-background transition-colors">[ CONFIRM_WIPE ]</button>
         </div>
       </Modal>
     </div>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { AppState, AppStateStatus, View, ActivityIndicator } from 'react-native';
+import { AppState, AppStateStatus, View, ActivityIndicator, Platform } from 'react-native';
 import { useAuthStore } from '@/store/authStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useScreenProtection } from '@/hooks/useScreenProtection';

@@ -61,6 +61,13 @@ export function getSearchableVaultText(item: DecryptedVaultItem): string {
     item.note,
     item.cardHolder,
     item.apiService,
+    item.fullName,
+    item.emailAddress,
+    item.phone,
+    item.address,
+    item.company,
+    item.ssid,
+    item.routerIp,
     ...(item.tags ?? []),
   ]
     .filter(Boolean)
